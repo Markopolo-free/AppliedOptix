@@ -30,7 +30,17 @@ export default defineConfig(({ mode }) => {
                 // Split large, specific libraries into their own vendor chunks
                 if (id.includes('react') || id.includes('react-dom')) return 'vendor_react';
                 if (id.includes('recharts')) return 'vendor_recharts';
-                if (id.includes('firebase')) return 'vendor_firebase';
+                if (id.includes('firebase')) {
+                  // Prefer splitting firebase into its specific submodules when present
+                  if (id.includes('firebase' + path.sep + 'app') || id.includes('firebase' + '/app')) return 'vendor_firebase_app';
+                  if (id.includes('firebase' + path.sep + 'auth') || id.includes('firebase' + '/auth')) return 'vendor_firebase_auth';
+                  if (id.includes('firebase' + path.sep + 'firestore') || id.includes('firebase' + '/firestore')) return 'vendor_firebase_firestore';
+                  if (id.includes('firebase' + path.sep + 'storage') || id.includes('firebase' + '/storage')) return 'vendor_firebase_storage';
+                  if (id.includes('firebase' + path.sep + 'functions') || id.includes('firebase' + '/functions')) return 'vendor_firebase_functions';
+                  if (id.includes('firebase' + path.sep + 'analytics') || id.includes('firebase' + '/analytics')) return 'vendor_firebase_analytics';
+                  if (id.includes('firebase' + path.sep + 'database') || id.includes('firebase' + '/database')) return 'vendor_firebase_database';
+                  return 'vendor_firebase';
+                }
                 if (id.includes('@google/genai') || id.includes('genai')) return 'vendor_genai';
                 // Further split common heavy transitive libs
                 if (id.includes('d3') || id.includes('d3-')) return 'vendor_d3';
