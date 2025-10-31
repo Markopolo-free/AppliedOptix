@@ -25,8 +25,13 @@ export default defineConfig(({ mode }) => {
         rollupOptions: {
           output: {
             manualChunks(id) {
+              if (!id) return;
               if (id.includes('node_modules')) {
+                // Split large, specific libraries into their own vendor chunks
                 if (id.includes('react') || id.includes('react-dom')) return 'vendor_react';
+                if (id.includes('recharts')) return 'vendor_recharts';
+                if (id.includes('firebase')) return 'vendor_firebase';
+                if (id.includes('@google/genai') || id.includes('genai')) return 'vendor_genai';
                 return 'vendor';
               }
             }
