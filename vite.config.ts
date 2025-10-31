@@ -32,6 +32,12 @@ export default defineConfig(({ mode }) => {
                 if (id.includes('recharts')) return 'vendor_recharts';
                 if (id.includes('firebase')) return 'vendor_firebase';
                 if (id.includes('@google/genai') || id.includes('genai')) return 'vendor_genai';
+                // Further split common heavy transitive libs
+                if (id.includes('d3') || id.includes('d3-')) return 'vendor_d3';
+                if (id.includes('lodash') || id.includes('lodash-es')) return 'vendor_lodash';
+                if (id.includes('redux') || id.includes('@reduxjs') || id.includes('redux-toolkit') || id.includes('rtk')) return 'vendor_redux';
+                if (id.includes('immer')) return 'vendor_immer';
+                // fallback vendor bundle
                 return 'vendor';
               }
             }
