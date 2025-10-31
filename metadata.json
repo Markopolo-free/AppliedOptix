@@ -1,0 +1,5 @@
+{
+  "name": "eMobility Staff Portal",
+  "description": "A prototype website for staff to manage the eMobility SaaS platform. This portal allows for the management of services, pricing, user roles, loyalty programs, and advertising campaigns for a variety of urban mobility and lifestyle services across Europe.",
+  "requestFramePermissions": []
+}
