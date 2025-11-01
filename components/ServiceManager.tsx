@@ -1,0 +1,322 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { ref, get, push, set, serverTimestamp, update, remove } from 'firebase/database';
+import { db } from '../services/firebase';
+import { Service, ServiceStatus } from '../types';
+
+const initialNewServiceState = {
+    name: '',
+    description: '',
+    type: 'Electric Car',
+    price: '',
+    currency: 'EUR',
+    status: ServiceStatus.Available,
+    location: '',
+};
+
+const ServiceManager: React.FC = () => {
+    const [services, setServices] = useState<Service[]>([]);
+    const [serviceTypes, setServiceTypes] = useState<string[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isAddTypeModalOpen, setIsAddTypeModalOpen] = useState(false);
+    const [newTypeName, setNewTypeName] = useState("");
+    const [formData, setFormData] = useState(initialNewServiceState);
+    const [editingService, setEditingService] = useState<Service | null>(null);
+
+    const fetchAndSeedServiceTypes = useCallback(async () => {
+        const typesRef = ref(db, 'serviceTypes');
+        const snapshot = await get(typesRef);
+        let types: string[] = [];
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            types = Object.values(data) as string[];
+            setServiceTypes(types);
+        } else {
+            // Seed initial data if it doesn't exist
+            const initialTypes = ['Electric Car', 'eScooter', 'eBike', 'Bus', 'Train', 'Pay-as-you-go Office', 'Health Clinic'];
+            const updates: { [key: string]: string } = {};
+            initialTypes.forEach(typeName => {
+                const newKey = push(typesRef).key;
+                if (newKey) {
+                    updates[newKey] = typeName;
+                }
+            });
+            await set(typesRef, updates);
+            types = initialTypes;
+            setServiceTypes(initialTypes);
+        }
+        // Ensure form default type is a valid one
+        if (types.length > 0 && initialNewServiceState.type !== types[0]) {
+            initialNewServiceState.type = types[0];
+            setFormData(initialNewServiceState);
+        }
+    }, []);
+    
+    const fetchServices = useCallback(async () => {
+        const servicesRef = ref(db, 'services');
+        const snapshot = await get(servicesRef);
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            const list: Service[] = Object.keys(data).map(key => ({
+                id: key,
+                ...data[key],
+                lastModifiedAt: new Date(data[key].lastModifiedAt).toISOString(),
+            }));
+            list.sort((a, b) => new Date(b.lastModifiedAt).getTime() - new Date(a.lastModifiedAt).getTime());
+            setServices(list);
+        } else {
+            setServices([]);
+        }
+    }, []);
+
+    const fetchData = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            await fetchAndSeedServiceTypes();
+            await fetchServices();
+        } catch (error) {
+             console.error("Error fetching data: ", error);
+            alert("Could not fetch data. See console for details.");
+        } finally {
+            setIsLoading(false);
+        }
+    }, [fetchAndSeedServiceTypes, fetchServices]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    const handleOpenModalForAdd = () => {
+        setEditingService(null);
+        setFormData(initialNewServiceState);
+        setIsModalOpen(true);
+    };
+
+    const handleOpenModalForEdit = (service: Service) => {
+        setEditingService(service);
+        setFormData({
+            name: service.name,
+            description: service.description,
+            type: service.type,
+            price: String(service.price),
+            currency: service.currency,
+            status: service.status,
+            location: service.location,
+        });
+        setIsModalOpen(true);
+    };
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSaveService = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const serviceData = {
+            ...formData,
+            price: parseFloat(formData.price) || 0,
+            lastModifiedBy: 'usr_admin',
+            lastModifiedAt: serverTimestamp(),
+        };
+
+        try {
+            if (editingService) {
+                const serviceRef = ref(db, `services/${editingService.id}`);
+                await update(serviceRef, serviceData);
+            } else {
+                const servicesListRef = ref(db, 'services');
+                const newServiceRef = push(servicesListRef);
+                await set(newServiceRef, serviceData);
+            }
+            setIsModalOpen(false);
+            setEditingService(null);
+            await fetchServices();
+        } catch (error) {
+            console.error("Error saving service: ", error);
+            alert("Failed to save service. See console for details.");
+        }
+    };
+
+    const handleSaveNewType = async () => {
+        const trimmedTypeName = newTypeName.trim();
+        if (!trimmedTypeName) {
+            alert("Please enter a name for the new service type.");
+            return;
+        }
+        if (serviceTypes.includes(trimmedTypeName)) {
+            alert("This service type already exists.");
+            return;
+        }
+        const typesRef = ref(db, 'serviceTypes');
+        const newTypeRef = push(typesRef);
+        try {
+            await set(newTypeRef, trimmedTypeName);
+            const updatedTypes = [...serviceTypes, trimmedTypeName];
+            setServiceTypes(updatedTypes);
+            setFormData(prev => ({ ...prev, type: trimmedTypeName }));
+            setNewTypeName("");
+            setIsAddTypeModalOpen(false);
+        } catch (error) {
+            console.error("Error saving new service type:", error);
+            alert("Failed to save new service type.");
+        }
+    };
+
+    const handleDeleteService = async (serviceId: string) => {
+        if (window.confirm('Are you sure you want to delete this service?')) {
+            try {
+                await remove(ref(db, `services/${serviceId}`));
+                await fetchServices();
+            } catch (error) {
+                console.error("Error deleting service:", error);
+                alert("Failed to delete service.");
+            }
+        }
+    };
+    
+    const getStatusColor = (status: ServiceStatus) => {
+        switch (status) {
+            case ServiceStatus.Available: return 'bg-green-100 text-green-800';
+            case ServiceStatus.Unavailable: return 'bg-yellow-100 text-yellow-800';
+            case ServiceStatus.Retired: return 'bg-red-100 text-red-800';
+            default: return 'bg-gray-100 text-gray-800';
+        }
+    };
+
+    return (
+        <div>
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-3xl font-bold text-gray-800">Service Management</h1>
+                <button onClick={handleOpenModalForAdd} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
+                    Add Service
+                </button>
+            </div>
+
+            <div className="bg-white shadow-md rounded-lg overflow-hidden border border-gray-200">
+                <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Service Name</th>
+                                <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                                <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Last Modified</th>
+                                <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {isLoading ? (
+                                <tr><td colSpan={6} className="text-center py-10 text-gray-500">Loading services...</td></tr>
+                            ) : services.length === 0 ? (
+                                <tr><td colSpan={6} className="text-center py-10 text-gray-500">No services found.</td></tr>
+                            ) : (
+                                services.map((service) => (
+                                    <tr key={service.id}>
+                                        <td className="px-6 py-4">
+                                            <div className="font-medium text-gray-900">{service.name}</div>
+                                            <div className="text-gray-500">{service.location}</div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-gray-700">{service.type}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
+                                            {new Intl.NumberFormat('de-DE', { style: 'currency', currency: service.currency }).format(service.price)}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(service.status)}`}>
+                                                {service.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-gray-500">
+                                            {new Date(service.lastModifiedAt).toLocaleString()}
+                                            <div className="text-xs text-gray-400">by {service.lastModifiedBy}</div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-right font-medium">
+                                            <button onClick={() => handleOpenModalForEdit(service)} className="text-primary-600 hover:text-primary-900">Edit</button>
+                                            <button onClick={() => handleDeleteService(service.id)} className="ml-4 text-red-600 hover:text-red-900">Delete</button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {isModalOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-40 flex justify-center items-center p-4">
+                    <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg max-h-full overflow-y-auto">
+                        <h2 className="text-2xl font-bold mb-6 text-gray-800">{editingService ? 'Edit Service' : 'Add New Service'}</h2>
+                        <form onSubmit={handleSaveService}>
+                             <div className="sm:col-span-2 mb-4">
+                                <label htmlFor="name" className="block text-sm font-medium text-gray-700">Service Name</label>
+                                <input type="text" name="name" id="name" value={formData.name} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required />
+                            </div>
+                             <div className="sm:col-span-2 mb-4">
+                                <label htmlFor="description" className="block text-sm font-medium text-gray-700">Description</label>
+                                <textarea name="description" id="description" value={formData.description} onChange={handleInputChange} rows={3} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"></textarea>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label htmlFor="type" className="block text-sm font-medium text-gray-700">Service Type</label>
+                                    <div className="mt-1 flex items-center gap-2">
+                                        <select name="type" id="type" value={formData.type} onChange={handleInputChange} className="flex-grow w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+                                            {serviceTypes.map(type => <option key={type} value={type}>{type}</option>)}
+                                        </select>
+                                        <button type="button" onClick={() => setIsAddTypeModalOpen(true)} className="px-3 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 text-sm">Add New</button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label htmlFor="location" className="block text-sm font-medium text-gray-700">Location</label>
+                                    <input type="text" name="location" id="location" value={formData.location} onChange={handleInputChange} placeholder="e.g. Berlin" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
+                                </div>
+                                <div>
+                                    <label htmlFor="price" className="block text-sm font-medium text-gray-700">Price</label>
+                                    <input type="number" name="price" id="price" value={formData.price} onChange={handleInputChange} step="0.01" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required />
+                                </div>
+                                <div>
+                                    <label htmlFor="currency" className="block text-sm font-medium text-gray-700">Currency</label>
+                                    <input type="text" name="currency" id="currency" value={formData.currency} onChange={handleInputChange} placeholder="EUR" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required />
+                                </div>
+                                 <div className="sm:col-span-2">
+                                    <label htmlFor="status" className="block text-sm font-medium text-gray-700">Status</label>
+                                    <select name="status" id="status" value={formData.status} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+                                        {Object.values(ServiceStatus).map(status => <option key={status} value={status}>{status}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="mt-8 flex justify-end space-x-4">
+                                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Cancel</button>
+                                <button type="submit" className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">{editingService ? 'Save Changes' : 'Save Service'}</button>
+                            </div>
+                        </form>
+                    </div>
+                    {isAddTypeModalOpen && (
+                        <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center p-4">
+                            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
+                                <h3 className="text-lg font-bold mb-4 text-gray-800">Add New Service Type</h3>
+                                <div>
+                                    <label htmlFor="newTypeName" className="block text-sm font-medium text-gray-700 mb-1">Type Name</label>
+                                    <input 
+                                        type="text" 
+                                        id="newTypeName" 
+                                        value={newTypeName} 
+                                        onChange={(e) => setNewTypeName(e.target.value)} 
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" 
+                                        placeholder="e.g. Ferry" 
+                                    />
+                                </div>
+                                <div className="mt-6 flex justify-end space-x-3">
+                                    <button type="button" onClick={() => setIsAddTypeModalOpen(false)} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Cancel</button>
+                                    <button type="button" onClick={handleSaveNewType} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">Save Type</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default ServiceManager;
