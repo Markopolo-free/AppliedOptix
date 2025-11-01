@@ -2,15 +2,36 @@ import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(async ({ mode }) => {
     const env = loadEnv(mode, '.', '');
+
+  // Base plugins
+  const plugins = [react()];
+  let visualizerPlugin: any = null;
+
+    // Optionally include bundle visualizer if available
+    try {
+      // @ts-ignore - visualizer is an optional dev dependency; ignore type resolution
+      const { visualizer } = await import('rollup-plugin-visualizer');
+      visualizerPlugin = visualizer({
+        filename: 'dist/bundle-report.html',
+        template: 'treemap',
+        gzipSize: true,
+        brotliSize: true,
+        open: false,
+        emitFile: false
+      }) as any;
+    } catch (e) {
+      // Visualizer not installed; skip without failing the build
+    }
+
     return {
       base: './',
       server: {
         port: 3000,
         host: '0.0.0.0',
       },
-      plugins: [react()],
+      plugins,
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
@@ -21,8 +42,13 @@ export default defineConfig(({ mode }) => {
         }
       },
       build: {
+        sourcemap: true,
         // Split vendor and react-related code into separate chunks to reduce the main bundle size
         rollupOptions: {
+          plugins: [
+            // only include if available
+            ...(visualizerPlugin ? [visualizerPlugin] : [])
+          ],
           output: {
             manualChunks(id) {
               if (!id) return;

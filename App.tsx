@@ -1,14 +1,16 @@
 
-import React, { useState } from 'react';
+import React, { useState, lazy, Suspense } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
-import UserManager from './components/UserManager';
-import CampaignManager from './components/CampaignManager';
-import PricingManager from './components/PricingManager';
-import LoyaltyManager from './components/LoyaltyManager';
-import ZoneManager from './components/ZoneManager';
-import ServiceManager from './components/ServiceManager';
+
+// Lazy-load manager components for route-based code splitting
+const UserManager = lazy(() => import('./components/UserManager'));
+const CampaignManager = lazy(() => import('./components/CampaignManager'));
+const PricingManager = lazy(() => import('./components/PricingManager'));
+const LoyaltyManager = lazy(() => import('./components/LoyaltyManager'));
+const ZoneManager = lazy(() => import('./components/ZoneManager'));
+const ServiceManager = lazy(() => import('./components/ServiceManager'));
 
 type View = 'dashboard' | 'users' | 'services' | 'pricing' | 'campaigns' | 'loyalty' | 'zones';
 
@@ -43,7 +45,9 @@ const App: React.FC = () => {
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
         <Header toggleSidebar={() => setSidebarOpen(!isSidebarOpen)} />
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4 sm:p-6 lg:p-8">
-          {renderView()}
+          <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-gray-500">Loading...</div></div>}>
+            {renderView()}
+          </Suspense>
         </main>
       </div>
     </div>
