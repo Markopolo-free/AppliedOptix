@@ -1,6 +1,6 @@
 
-import React from 'react';
-import ChartLazy from './ChartLazy';
+import React, { Suspense } from 'react';
+const ChartLazy = React.lazy(() => import('./ChartLazy'));
 
 const data = [
   { name: 'Mon', 'eCar': 400, 'eBike': 240, 'Train': 180 },
@@ -36,9 +36,11 @@ const Dashboard: React.FC = () => {
 
       <div className="mt-8 bg-white p-6 rounded-xl shadow-md border border-gray-200">
         <h2 className="text-xl font-semibold text-gray-800 mb-4">Weekly Service Usage</h2>
-    <div style={{ width: '100%', height: 400 }}>
-      <ChartLazy data={data} />
-    </div>
+        <div style={{ width: '100%', height: 400 }}>
+          <Suspense fallback={<div className="h-96 flex items-center justify-center">Loading chart…</div>}>
+            <ChartLazy data={data} />
+          </Suspense>
+        </div>
       </div>
     </div>
   );

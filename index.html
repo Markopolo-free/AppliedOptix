@@ -33,7 +33,33 @@
        If you want to load some libs from CDN in dev, add the importmap back conditionally. -->
 </head>
   <body class="bg-gray-100">
-    <div id="root"></div>
+    <div id="root">Loading app…</div>
+    <script>
+      // Pre-React error capture so blank screen shows a message
+      (function () {
+        function showBootError(prefix, msg) {
+          try {
+            var el = document.getElementById('root');
+            if (el) {
+              el.style.padding = '16px';
+              el.style.fontFamily = 'sans-serif';
+              el.style.color = '#b91c1c';
+              el.innerText = prefix + ': ' + msg;
+            }
+          } catch {}
+        }
+        window.addEventListener('error', function (e) {
+          var m = (e && (e.error && e.error.message)) || e.message || String(e);
+          console.error('[boot] error', e.error || e);
+          showBootError('Runtime error', m);
+        });
+        window.addEventListener('unhandledrejection', function (e) {
+          var reason = e && (e.reason && (e.reason.message || e.reason)) || 'Unhandled promise rejection';
+          console.error('[boot] unhandledrejection', e.reason || e);
+          showBootError('Unhandled rejection', reason);
+        });
+      })();
+    </script>
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>

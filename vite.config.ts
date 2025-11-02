@@ -39,7 +39,9 @@ export default defineConfig(async ({ mode }) => {
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
-        }
+        },
+        // Ensure only a single copy of React and ReactDOM are bundled
+        dedupe: ['react', 'react-dom', 'use-sync-external-store']
       },
       build: {
         sourcemap: true,
@@ -54,7 +56,8 @@ export default defineConfig(async ({ mode }) => {
               if (!id) return;
               if (id.includes('node_modules')) {
                 // Split large, specific libraries into their own vendor chunks
-                if (id.includes('react') || id.includes('react-dom')) return 'vendor_react';
+                // Group use-sync-external-store WITH React to ensure proper initialization order
+                if (id.includes('react') || id.includes('react-dom') || id.includes('use-sync-external-store')) return 'vendor_react';
                 if (id.includes('recharts')) return 'vendor_recharts';
                 if (id.includes('firebase')) {
                   // Prefer splitting firebase into its specific submodules when present
