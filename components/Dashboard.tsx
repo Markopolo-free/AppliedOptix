@@ -44,7 +44,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       <div className="mt-8 flex justify-end">
-        <img src="/logo.jpg" alt="Adaptive Optix Logo" className="h-12 w-auto opacity-80" />
+        <img src="/logo.jpg" alt="Adaptive Optix Logo" className="h-20 w-auto opacity-90" />
       </div>
     </div>
   );
