@@ -1,0 +1,30 @@
+{
+  "clientName": "GreenTransit",
+  "branding": {
+    "logo": "/logos/greentransit.jpg",
+    "siteName": "GreenTransit Portal",
+    "primaryColor": "#10b981",
+    "secondaryColor": "#059669",
+    "accentColor": "#34d399",
+    "backgroundColor": "#f0fdf4",
+    "textPrimary": "#064e3b",
+    "textSecondary": "#047857",
+    "successColor": "#10b981",
+    "errorColor": "#dc2626"
+  },
+  "pages": {
+    "dashboard": {
+      "title": "Control Center",
+      "statCards": [
+        { "title": "Total Riders", "value": "2,845" },
+        { "title": "Active Routes", "value": "24" },
+        { "title": "Revenue Today", "value": "€12,340" },
+        { "title": "Trips Completed", "value": "15,234" }
+      ]
+    }
+  },
+  "colorPalette": [
+    "#10b981", "#059669", "#34d399", "#6ee7b7", "#a7f3d0",
+    "#047857", "#065f46", "#064e3b", "#022c22", "#14532d"
+  ]
+}

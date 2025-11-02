@@ -11,8 +11,9 @@ const PricingManager = lazy(() => import('./components/PricingManager'));
 const LoyaltyManager = lazy(() => import('./components/LoyaltyManager'));
 const ZoneManager = lazy(() => import('./components/ZoneManager'));
 const ServiceManager = lazy(() => import('./components/ServiceManager'));
+const ThemeConfigurator = lazy(() => import('./components/ThemeConfigurator'));
 
-type View = 'dashboard' | 'users' | 'services' | 'pricing' | 'campaigns' | 'loyalty' | 'zones';
+type View = 'dashboard' | 'users' | 'services' | 'pricing' | 'campaigns' | 'loyalty' | 'zones' | 'theme';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>('dashboard');
@@ -34,6 +35,8 @@ const App: React.FC = () => {
         return <CampaignManager />;
       case 'loyalty':
         return <LoyaltyManager />;
+      case 'theme':
+        return <ThemeConfigurator />;
       default:
         return <Dashboard />;
     }
