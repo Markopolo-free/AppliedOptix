@@ -24,9 +24,9 @@ const StatCard: React.FC<{ title: string; value: string; change: string; isPosit
 
 const Dashboard: React.FC = () => {
   return (
-    <div>
+    <div className="relative pb-24">
       <h1 className="text-3xl font-bold text-gray-800 mb-6">Dashboard</h1>
-      
+
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard title="Total Users" value="1,245" change="12.5%" isPositive={true} />
         <StatCard title="Active Campaigns" value="18" change="2" isPositive={true} />
@@ -41,6 +41,10 @@ const Dashboard: React.FC = () => {
             <ChartLazy data={data} />
           </Suspense>
         </div>
+      </div>
+
+      <div className="mt-8 flex justify-end">
+        <img src="/logo.jpg" alt="Adaptive Optix Logo" className="h-12 w-auto opacity-80" />
       </div>
     </div>
   );
