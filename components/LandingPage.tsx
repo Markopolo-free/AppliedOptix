@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import GreenBoltIcon from './GreenBoltIcon';
-import { saveSecret } from './secretsService';
+import { saveSecret, getSecrets } from './secretsService';
 import { userEmailExists } from './userManagementService';
 
 interface LandingPageProps {
@@ -17,9 +17,16 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (await userEmailExists(email)) {
-      setStep('success');
-      setError('');
-      if (onAuthSuccess) onAuthSuccess();
+      // Validate password against secrets
+      const secrets = getSecrets();
+      const match = secrets.find(s => s.username === email && s.password === password);
+      if (match) {
+        setStep('success');
+        setError('');
+        if (onAuthSuccess) onAuthSuccess();
+      } else {
+        setError('Incorrect password.');
+      }
     } else {
       setStep('register');
       setError('User not found. Please register.');
