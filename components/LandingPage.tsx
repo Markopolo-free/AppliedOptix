@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import GreenBoltIcon from './GreenBoltIcon';
-import { saveSecret, getSecrets } from './secretsService';
 import { userEmailExists, getUserByEmail } from './userManagementService';
+import { validateCredentials } from '../services/testCredentialsService';
 import DebugSecrets from './DebugSecrets';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -20,10 +20,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (await userEmailExists(email)) {
-      // Validate password against secrets
-      const secrets = getSecrets();
-      const match = secrets.find(s => s.username === email && s.password === password);
-      if (match) {
+      // Validate password against test credentials file
+      if (validateCredentials(email, password)) {
         // Get user details from UserManager DB
         const user = await getUserByEmail(email);
         if (user) {
@@ -47,10 +45,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
       setError('All fields required.');
       return;
     }
-    saveSecret({ username: email, password });
-    setStep('success');
-    setError('');
-    if (onAuthSuccess) onAuthSuccess();
+    // Note: For testing, add credentials to test-credentials.json file
+    alert('Registration is disabled in test mode. Please add credentials to test-credentials.json file.');
+    setError('Registration disabled. Contact administrator to add test credentials.');
   };
 
   return (

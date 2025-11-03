@@ -2,31 +2,19 @@
 // Remove this file in production
 
 import React, { useState, useEffect } from 'react';
-import { getSecrets, saveSecret } from './secretsService';
+import { getTestCredentials } from '../services/testCredentialsService';
 
 const DebugSecrets: React.FC = () => {
   const [secrets, setSecrets] = useState<any[]>([]);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
   const [showPasswords, setShowPasswords] = useState(false);
 
   const refreshSecrets = () => {
-    setSecrets(getSecrets());
+    setSecrets(getTestCredentials());
   };
 
   useEffect(() => {
     refreshSecrets();
   }, []);
-
-  const handleAddSecret = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (username && password) {
-      saveSecret({ username, password });
-      setUsername('');
-      setPassword('');
-      refreshSecrets();
-    }
-  };
 
   return (
     <div className="fixed bottom-4 right-4 bg-white border-2 border-red-500 p-4 rounded-lg shadow-lg max-w-md z-50">
@@ -50,28 +38,13 @@ const DebugSecrets: React.FC = () => {
         </button>
       </div>
       
-      {/* Add Secret Form */}
-      <form onSubmit={handleAddSecret} className="mb-3 pb-3 border-b border-gray-300">
-        <div className="text-xs mb-2">
-          <input
-            type="text"
-            placeholder="Username/Email"
-            value={username}
-            onChange={e => setUsername(e.target.value)}
-            className="w-full px-2 py-1 border rounded mb-1"
-          />
-          <input
-            type="text"
-            placeholder="Password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            className="w-full px-2 py-1 border rounded mb-1"
-          />
-          <button type="submit" className="w-full px-2 py-1 bg-red-500 text-white rounded text-xs">
-            Add Secret
-          </button>
+      {/* Info Message */}
+      <div className="mb-3 pb-3 border-b border-gray-300">
+        <div className="text-xs text-gray-600">
+          Credentials are loaded from <code className="bg-gray-100 px-1">test-credentials.json</code>. 
+          Edit that file to add/modify test credentials.
         </div>
-      </form>
+      </div>
 
       <div className="text-xs max-h-60 overflow-auto">
         {secrets.length === 0 ? (
