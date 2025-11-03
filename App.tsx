@@ -1,5 +1,6 @@
 
 import React, { useState, lazy, Suspense } from 'react';
+import { AuthProvider } from './contexts/AuthContext';
 import LandingPage from './components/LandingPage';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -49,21 +50,27 @@ const App: React.FC = () => {
   };
 
   if (!isAuthenticated) {
-    return <LandingPage onAuthSuccess={handleAuthSuccess} />;
+    return (
+      <AuthProvider>
+        <LandingPage onAuthSuccess={handleAuthSuccess} />
+      </AuthProvider>
+    );
   }
 
   return (
-    <div className="flex h-screen bg-gray-100 font-sans">
-      <Sidebar currentView={currentView} setCurrentView={setCurrentView} isSidebarOpen={isSidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
-        <Header toggleSidebar={() => setSidebarOpen(!isSidebarOpen)} />
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4 sm:p-6 lg:p-8">
-          <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-gray-500">Loading...</div></div>}>
-            {renderView()}
-          </Suspense>
-        </main>
+    <AuthProvider>
+      <div className="flex h-screen bg-gray-100 font-sans">
+        <Sidebar currentView={currentView} setCurrentView={setCurrentView} isSidebarOpen={isSidebarOpen} setSidebarOpen={setSidebarOpen} />
+        <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
+          <Header toggleSidebar={() => setSidebarOpen(!isSidebarOpen)} />
+          <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4 sm:p-6 lg:p-8">
+            <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-gray-500">Loading...</div></div>}>
+              {renderView()}
+            </Suspense>
+          </main>
+        </div>
       </div>
-    </div>
+    </AuthProvider>
   );
 };
 

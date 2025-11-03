@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import GreenBoltIcon from './GreenBoltIcon';
 import { saveSecret, getSecrets } from './secretsService';
-import { userEmailExists } from './userManagementService';
+import { userEmailExists, getUserByEmail } from './userManagementService';
 import DebugSecrets from './DebugSecrets';
+import { useAuth } from '../contexts/AuthContext';
 
 interface LandingPageProps {
   onAuthSuccess?: () => void;
 }
 
 const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
+  const { setCurrentUser } = useAuth();
   const [step, setStep] = useState<'login' | 'register' | 'success'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,6 +24,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
       const secrets = getSecrets();
       const match = secrets.find(s => s.username === email && s.password === password);
       if (match) {
+        // Get user details from UserManager DB
+        const user = await getUserByEmail(email);
+        if (user) {
+          setCurrentUser({ email: user.email, name: user.name, role: user.role });
+        }
         setStep('success');
         setError('');
         if (onAuthSuccess) onAuthSuccess();

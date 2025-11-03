@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ref, get, push, set, serverTimestamp, update, remove } from 'firebase/database';
 import { db } from '../services/firebase';
 import { Zone, ZoneType } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 const initialNewZoneState = {
     name: '',
@@ -10,6 +11,7 @@ const initialNewZoneState = {
 };
 
 const ZoneManager: React.FC = () => {
+    const { currentUser, isAdmin } = useAuth();
     const [zones, setZones] = useState<Zone[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -46,6 +48,10 @@ const ZoneManager: React.FC = () => {
     }, [fetchZones]);
 
     const handleOpenModalForAdd = () => {
+        if (!isAdmin) {
+            alert('Only Administrators can add new Pricing Zones.');
+            return;
+        }
         setEditingZone(null);
         setNewZone(initialNewZoneState);
         setIsModalOpen(true);
@@ -72,12 +78,18 @@ const ZoneManager: React.FC = () => {
             alert("Please fill in all fields.");
             return;
         }
+        if (!editingZone && !isAdmin) {
+            alert('Only Administrators can add new Pricing Zones.');
+            return;
+        }
         try {
+            const modifiedBy = currentUser?.name || currentUser?.email || 'Unknown User';
+            
             if (editingZone) {
                 const zoneRef = ref(db, `zones/${editingZone.id}`);
                 await update(zoneRef, {
                     ...newZone,
-                    lastModifiedBy: 'usr_admin',
+                    lastModifiedBy: modifiedBy,
                     lastModifiedAt: serverTimestamp(),
                 });
             } else {
@@ -85,7 +97,7 @@ const ZoneManager: React.FC = () => {
                 const newZoneRef = push(zonesListRef);
                 await set(newZoneRef, {
                     ...newZone,
-                    lastModifiedBy: 'usr_admin',
+                    lastModifiedBy: modifiedBy,
                     lastModifiedAt: serverTimestamp(),
                 });
             }
@@ -114,7 +126,16 @@ const ZoneManager: React.FC = () => {
         <div>
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-3xl font-bold text-gray-800">Pricing Zone Management</h1>
-                <button onClick={handleOpenModalForAdd} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
+                <button 
+                    onClick={handleOpenModalForAdd} 
+                    disabled={!isAdmin}
+                    className={`px-4 py-2 rounded-lg transition-colors ${
+                        isAdmin 
+                            ? 'bg-primary-600 text-white hover:bg-primary-700' 
+                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                    title={!isAdmin ? 'Only Administrators can add zones' : 'Add a new pricing zone'}
+                >
                     Add Zone
                 </button>
             </div>
