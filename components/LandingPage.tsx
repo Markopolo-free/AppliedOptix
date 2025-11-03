@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import GreenBoltIcon from './GreenBoltIcon';
 import { saveSecret } from './secretsService';
 import { userEmailExists } from './userManagementService';
 
@@ -41,7 +42,10 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
     <div className="flex h-screen bg-gray-100 font-sans">
       {/* Left nav style */}
       <div className="w-64 bg-gray-800 p-8 flex flex-col justify-center items-center">
-        <span className="text-2xl font-bold text-white mb-4">eMobility</span>
+        <div className="flex items-center mb-4">
+          <GreenBoltIcon className="mr-2" />
+          <span className="text-2xl font-bold text-white">eMobility</span>
+        </div>
         <span className="text-lg text-gray-300">Rules Set-up</span>
       </div>
       <div className="flex-1 flex flex-col items-center justify-center">
