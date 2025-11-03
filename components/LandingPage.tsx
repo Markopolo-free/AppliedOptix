@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import GreenBoltIcon from './GreenBoltIcon';
 import { saveSecret, getSecrets } from './secretsService';
 import { userEmailExists } from './userManagementService';
+import DebugSecrets from './DebugSecrets';
 
 interface LandingPageProps {
   onAuthSuccess?: () => void;
@@ -98,6 +99,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
           )}
         </div>
       </div>
+      <DebugSecrets />
     </div>
   );
 };

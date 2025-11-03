@@ -22,3 +22,12 @@ export function getSecrets(): Secret[] {
 export function userExists(username: string): boolean {
   return getSecrets().some(s => s.username === username);
 }
+
+export function getSecretForUser(username: string): Secret | undefined {
+  return getSecrets().find(s => s.username === username);
+}
+
+// Debug utility - remove in production
+export function debugSecrets(): void {
+  console.log('All stored secrets:', getSecrets());
+}
