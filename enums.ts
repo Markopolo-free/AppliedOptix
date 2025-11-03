@@ -36,3 +36,9 @@ export enum ZoneType {
     CommunityHub = 'Community Hub',
     TouristArea = 'Tourist Area',
 }
+
+export enum ApprovalStatus {
+    Pending = 'Pending',
+    Approved = 'Approved',
+    Rejected = 'Rejected'
+}

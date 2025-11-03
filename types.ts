@@ -1,4 +1,4 @@
-import { UserRole, ServiceStatus, PricingBasis, UserGroup, DiscountType, ZoneType } from './enums';
+import { UserRole, ServiceStatus, PricingBasis, UserGroup, DiscountType, ZoneType, ApprovalStatus } from './enums';
 
 export interface User {
   id: string;
@@ -47,6 +47,13 @@ export interface PricingRule {
         dayType?: 'Weekday' | 'Weekend';
         eventName?: string;
     };
+    status: ApprovalStatus;
+    makerName?: string;
+    makerEmail?: string;
+    makerTimestamp?: string;
+    checkerName?: string;
+    checkerEmail?: string;
+    checkerTimestamp?: string;
     lastModifiedBy: string;
     lastModifiedAt: string;
 }
@@ -60,6 +67,13 @@ export interface Campaign {
     discountValue: number;
     startDate: string;
     endDate: string;
+    status: ApprovalStatus;
+    makerName?: string;
+    makerEmail?: string;
+    makerTimestamp?: string;
+    checkerName?: string;
+    checkerEmail?: string;
+    checkerTimestamp?: string;
     lastModifiedBy: string;
     lastModifiedAt: string;
 }
@@ -69,6 +83,13 @@ export interface LoyaltyProgram {
     name: string;
     description: string;
     pointsPerEuro: number;
+    status: ApprovalStatus;
+    makerName?: string;
+    makerEmail?: string;
+    makerTimestamp?: string;
+    checkerName?: string;
+    checkerEmail?: string;
+    checkerTimestamp?: string;
     lastModifiedBy: string;
     lastModifiedAt: string;
 }
@@ -88,4 +109,4 @@ export interface Bundle {
 
 
 // Create a new enums.ts file to keep enums separate
-export { UserRole, ServiceStatus, PricingBasis, UserGroup, DiscountType, ZoneType };
+export { UserRole, ServiceStatus, PricingBasis, UserGroup, DiscountType, ZoneType, ApprovalStatus };

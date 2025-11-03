@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ref, get, push, set, serverTimestamp, update, remove } from 'firebase/database';
 import { db } from '../services/firebase';
-import { PricingRule, PricingBasis, UserGroup, Zone, Service } from '../types';
+import { PricingRule, PricingBasis, UserGroup, Zone, Service, ApprovalStatus, UserRole } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 const initialNewRuleState = {
     description: '',
@@ -14,6 +15,7 @@ const initialNewRuleState = {
 };
 
 const PricingManager: React.FC = () => {
+    const { currentUser } = useAuth();
     const [rules, setRules] = useState<PricingRule[]>([]);
     const [zones, setZones] = useState<Zone[]>([]); // For dropdown
     const [services, setServices] = useState<Service[]>([]); // For multi-select/info
@@ -21,6 +23,9 @@ const PricingManager: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [formData, setFormData] = useState(initialNewRuleState);
     const [editingRule, setEditingRule] = useState<PricingRule | null>(null);
+    
+    const isMaker = currentUser?.role === UserRole.Maker || currentUser?.role === UserRole.Administrator;
+    const isChecker = currentUser?.role === UserRole.Checker || currentUser?.role === UserRole.Administrator;
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
@@ -110,10 +115,18 @@ const PricingManager: React.FC = () => {
     const handleSaveRule = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        if (!isMaker) {
+            alert("Only Makers or Administrators can create or edit pricing rules.");
+            return;
+        }
+
         if (!formData.serviceIds || formData.serviceIds.length === 0) {
             alert("Please select at least one service for the rule.");
             return;
         }
+
+        const userName = currentUser?.name || currentUser?.email || 'Unknown User';
+        const userEmail = currentUser?.email || '';
 
         const ruleData = {
             description: formData.description,
@@ -123,7 +136,11 @@ const PricingManager: React.FC = () => {
             userGroup: formData.userGroup,
             zoneId: formData.zoneId || null,
             zoneDiscount: formData.zoneDiscount ? parseFloat(formData.zoneDiscount) : null,
-            lastModifiedBy: 'usr_admin',
+            status: ApprovalStatus.Pending,
+            makerName: userName,
+            makerEmail: userEmail,
+            makerTimestamp: new Date().toISOString(),
+            lastModifiedBy: userName,
             lastModifiedAt: serverTimestamp(),
         };
 
@@ -139,9 +156,74 @@ const PricingManager: React.FC = () => {
             setIsModalOpen(false);
             setEditingRule(null);
             await fetchData();
+            alert("Rule saved as Pending. Awaiting Checker approval.");
         } catch (error) {
             console.error("Error saving pricing rule:", error);
             alert("Failed to save pricing rule. See console for details.");
+        }
+    };
+
+    const handleApproveRule = async (rule: PricingRule) => {
+        if (!isChecker) {
+            alert("Only Checkers or Administrators can approve pricing rules.");
+            return;
+        }
+
+        if (rule.makerEmail === currentUser?.email) {
+            alert("You cannot approve your own changes. A different Checker must approve.");
+            return;
+        }
+
+        const userName = currentUser?.name || currentUser?.email || 'Unknown User';
+        const userEmail = currentUser?.email || '';
+
+        try {
+            const ruleRef = ref(db, `pricingRules/${rule.id}`);
+            await update(ruleRef, {
+                status: ApprovalStatus.Approved,
+                checkerName: userName,
+                checkerEmail: userEmail,
+                checkerTimestamp: new Date().toISOString(),
+                lastModifiedBy: userName,
+                lastModifiedAt: serverTimestamp(),
+            });
+            await fetchData();
+            alert("Rule approved successfully!");
+        } catch (error) {
+            console.error("Error approving rule:", error);
+            alert("Failed to approve rule. See console for details.");
+        }
+    };
+
+    const handleRejectRule = async (rule: PricingRule) => {
+        if (!isChecker) {
+            alert("Only Checkers or Administrators can reject pricing rules.");
+            return;
+        }
+
+        if (rule.makerEmail === currentUser?.email) {
+            alert("You cannot reject your own changes. A different Checker must review.");
+            return;
+        }
+
+        const userName = currentUser?.name || currentUser?.email || 'Unknown User';
+        const userEmail = currentUser?.email || '';
+
+        try {
+            const ruleRef = ref(db, `pricingRules/${rule.id}`);
+            await update(ruleRef, {
+                status: ApprovalStatus.Rejected,
+                checkerName: userName,
+                checkerEmail: userEmail,
+                checkerTimestamp: new Date().toISOString(),
+                lastModifiedBy: userName,
+                lastModifiedAt: serverTimestamp(),
+            });
+            await fetchData();
+            alert("Rule rejected.");
+        } catch (error) {
+            console.error("Error rejecting rule:", error);
+            alert("Failed to reject rule. See console for details.");
         }
     };
     
@@ -164,7 +246,16 @@ const PricingManager: React.FC = () => {
         <div>
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-3xl font-bold text-gray-800">Pricing Rule Management</h1>
-                <button onClick={handleOpenModalForAdd} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
+                <button 
+                    onClick={handleOpenModalForAdd} 
+                    disabled={!isMaker}
+                    className={`px-4 py-2 rounded-lg transition-colors ${
+                        isMaker 
+                            ? 'bg-primary-600 text-white hover:bg-primary-700' 
+                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                    title={!isMaker ? 'Only Makers can add pricing rules' : 'Add a new pricing rule'}
+                >
                     Add Rule
                 </button>
             </div>
@@ -177,18 +268,19 @@ const PricingManager: React.FC = () => {
                                 <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Description</th>
                                 <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Details</th>
                                 <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Services</th>
-                                <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Last Modified</th>
+                                <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Maker/Checker</th>
                                 <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                             {isLoading ? (
-                                <tr><td colSpan={5} className="text-center py-10 text-gray-500">Loading pricing rules...</td></tr>
+                                <tr><td colSpan={6} className="text-center py-10 text-gray-500">Loading pricing rules...</td></tr>
                             ) : rules.length === 0 ? (
-                                <tr><td colSpan={5} className="text-center py-10 text-gray-500">No pricing rules found.</td></tr>
+                                <tr><td colSpan={6} className="text-center py-10 text-gray-500">No pricing rules found.</td></tr>
                             ) : (
                                 rules.map((rule) => (
-                                    <tr key={rule.id}>
+                                    <tr key={rule.id} className={rule.status === ApprovalStatus.Pending ? 'bg-yellow-50' : ''}>
                                         <td className="px-6 py-4">
                                             <div className="font-medium text-gray-900">{rule.description}</div>
                                             <div className="text-gray-500">{rule.userGroup} users</div>
@@ -198,12 +290,35 @@ const PricingManager: React.FC = () => {
                                             {rule.zoneId && rule.zoneDiscount && <div className="text-gray-500">Zone: {getZoneName(rule.zoneId)} ({rule.zoneDiscount}% off)</div>}
                                         </td>
                                         <td className="px-6 py-4 text-gray-700">{rule.serviceIds.map(getServiceName).join(', ')}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                                rule.status === ApprovalStatus.Approved ? 'bg-green-100 text-green-800' :
+                                                rule.status === ApprovalStatus.Rejected ? 'bg-red-100 text-red-800' :
+                                                'bg-yellow-100 text-yellow-800'
+                                            }`}>
+                                                {rule.status || 'Pending'}
+                                            </span>
+                                        </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                                            {new Date(rule.lastModifiedAt).toLocaleString()}
-                                            <div className="text-xs text-gray-400">by {rule.lastModifiedBy}</div>
+                                            <div className="text-xs">
+                                                <div><strong>Maker:</strong> {rule.makerName || 'N/A'}</div>
+                                                {rule.makerTimestamp && <div className="text-gray-400">{new Date(rule.makerTimestamp).toLocaleString()}</div>}
+                                                {rule.checkerName && (
+                                                    <>
+                                                        <div className="mt-1"><strong>Checker:</strong> {rule.checkerName}</div>
+                                                        {rule.checkerTimestamp && <div className="text-gray-400">{new Date(rule.checkerTimestamp).toLocaleString()}</div>}
+                                                    </>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right font-medium">
-                                            <button onClick={() => handleOpenModalForEdit(rule)} className="text-primary-600 hover:text-primary-900">Edit</button>
+                                            {rule.status === ApprovalStatus.Pending && isChecker && rule.makerEmail !== currentUser?.email && (
+                                                <>
+                                                    <button onClick={() => handleApproveRule(rule)} className="text-green-600 hover:text-green-900 mr-2">Approve</button>
+                                                    <button onClick={() => handleRejectRule(rule)} className="text-red-600 hover:text-red-900 mr-2">Reject</button>
+                                                </>
+                                            )}
+                                            {isMaker && <button onClick={() => handleOpenModalForEdit(rule)} className="text-primary-600 hover:text-primary-900">Edit</button>}
                                             <button onClick={() => handleDeleteRule(rule.id)} className="ml-4 text-red-600 hover:text-red-900">Delete</button>
                                         </td>
                                     </tr>
