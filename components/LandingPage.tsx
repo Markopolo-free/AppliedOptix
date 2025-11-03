@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { saveSecret, userExists } from './secretsService';
+import { saveSecret } from './secretsService';
+import { userEmailExists } from './userManagementService';
 
 interface LandingPageProps {
   onAuthSuccess?: () => void;
@@ -12,9 +13,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (userExists(email)) {
+    if (await userEmailExists(email)) {
       setStep('success');
       setError('');
       if (onAuthSuccess) onAuthSuccess();
