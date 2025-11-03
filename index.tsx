@@ -7,6 +7,8 @@ import 'use-sync-external-store/shim/index.js';
 
 type EBState = { error: any };
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBState> {
+  // Explicitly declare props to satisfy TS type-checking in some strict configs
+  declare props: Readonly<{ children: React.ReactNode }>;
   state: EBState = { error: null };
   static getDerivedStateFromError(error: any): EBState {
     return { error };

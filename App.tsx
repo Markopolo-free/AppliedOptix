@@ -1,5 +1,6 @@
 
 import React, { useState, lazy, Suspense } from 'react';
+import LandingPage from './components/LandingPage';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
@@ -18,6 +19,11 @@ type View = 'dashboard' | 'users' | 'services' | 'pricing' | 'campaigns' | 'loya
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(false);
+  const [isAuthenticated, setAuthenticated] = useState(false);
+
+  const handleAuthSuccess = () => {
+    setAuthenticated(true);
+  };
 
   const renderView = () => {
     switch (currentView) {
@@ -41,6 +47,10 @@ const App: React.FC = () => {
         return <Dashboard />;
     }
   };
+
+  if (!isAuthenticated) {
+    return <LandingPage onAuthSuccess={handleAuthSuccess} />;
+  }
 
   return (
     <div className="flex h-screen bg-gray-100 font-sans">
