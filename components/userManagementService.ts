@@ -37,3 +37,20 @@ export async function getUserByEmail(email: string): Promise<User | null> {
     lastModifiedBy: data[userKey].lastModifiedBy,
   };
 }
+
+export async function getAllUsers(): Promise<User[]> {
+  const usersRef = ref(db, 'users');
+  const snapshot = await get(usersRef);
+  if (!snapshot.exists()) return [];
+  const data = snapshot.val();
+  
+  return Object.keys(data).map(key => ({
+    id: key,
+    name: data[key].name,
+    email: data[key].email,
+    role: data[key].role,
+    createdAt: data[key].createdAt,
+    lastModifiedAt: data[key].lastModifiedAt,
+    lastModifiedBy: data[key].lastModifiedBy,
+  }));
+}

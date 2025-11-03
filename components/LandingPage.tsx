@@ -103,7 +103,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
           )}
         </div>
       </div>
-      <DebugSecrets />
+      {/* Only show debug component in development */}
+      {process.env.NODE_ENV !== 'production' && <DebugSecrets />}
     </div>
   );
 };
