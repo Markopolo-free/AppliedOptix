@@ -25,3 +25,7 @@ test-credentials.json
 *.njsproj
 *.sln
 *.sw?
+
+scripts/add-user-*.cjs
+scripts/update-*.cjs
+*.cjs
