@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getDatabase, ref, onValue, push, remove, update } from 'firebase/database';
+import { getDatabase, ref, onValue, push, remove, update, query, orderByChild, equalTo } from 'firebase/database';
 import { useAuth } from '../contexts/AuthContext';
 import { logAudit, calculateChanges } from '../services/auditService';
 
@@ -83,13 +83,13 @@ const ReferenceDataManager: React.FC = () => {
       fields: ['name', 'location', 'type'],
       bulkHelp: 'Enter one zone per line. Format: Name,Location,Type (e.g., Downtown,Berlin Center,Urban)'
     },
-    cities: {
-      label: 'German Cities',
-      singular: 'City',
-      icon: '🏙️',
-      dbPath: 'referenceCities',
-      fields: ['name', 'population'],
-      bulkHelp: 'Enter one city per line. Format: CityName,Population'
+      cities: {
+        label: 'German Cities',
+        singular: 'City',
+        icon: '🏙️',
+        dbPath: 'referenceCities',
+        fields: ['name', 'population'],
+        bulkHelp: 'Enter one city per line. Format: CityName,Population'
     }
   };
 
@@ -107,7 +107,7 @@ const ReferenceDataManager: React.FC = () => {
         }));
         
         // Sort by name or population
-        if (activeCategory === 'cities' || activeCategory === 'countries') {
+        if (activeCategory === 'countries') {
           itemsArray.sort((a, b) => (b.population || 0) - (a.population || 0));
         } else {
           itemsArray.sort((a, b) => a.name.localeCompare(b.name));
@@ -223,7 +223,7 @@ const ReferenceDataManager: React.FC = () => {
             addedBy: currentUser.name || currentUser.email
           };
 
-          if (activeCategory === 'countries' || activeCategory === 'cities') {
+          if (activeCategory === 'countries') {
             itemData.name = parts[0];
             itemData.population = parts[1] ? parseInt(parts[1]) : 0;
           } else if (activeCategory === 'currencies') {
@@ -740,7 +740,18 @@ const ReferenceDataManager: React.FC = () => {
                       />
                     ) : (
                       <div className="text-sm text-gray-900">
-                        <div className="font-medium">{item.name}</div>
+                        <div className="font-medium flex items-center gap-3">
+                          <span>{item.name}</span>
+                          {activeCategory === 'countries' && (
+                            <button
+                              className="text-blue-600 hover:underline text-xs"
+                              onClick={() => setActiveCategory('cities')}
+                              title="View and manage cities"
+                            >
+                              City List
+                            </button>
+                          )}
+                        </div>
                         {(item.providers || []).length > 0 && (
                           <div className="text-gray-600 flex flex-col mt-1 text-xs">
                             {
