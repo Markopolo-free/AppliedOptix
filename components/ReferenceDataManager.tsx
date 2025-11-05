@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getDatabase, ref, onValue, push, remove, update, query, orderByChild, equalTo } from 'firebase/database';
 import { useAuth } from '../contexts/AuthContext';
 import { logAudit, calculateChanges } from '../services/auditService';
@@ -31,6 +31,12 @@ const ReferenceDataManager: React.FC = () => {
     population: ''
   });
   const [providersForm, setProvidersForm] = useState<{ name: string; model: string }[]>([]);
+  // Inline City management under Countries
+  type CityItem = { id: string; name: string; population?: number; country?: string; dateAdded?: string; addedBy?: string };
+  const [expandedCountry, setExpandedCountry] = useState<{ id: string; name: string } | null>(null);
+  const [countryCities, setCountryCities] = useState<Record<string, CityItem[]>>({});
+  const [cityAddForm, setCityAddForm] = useState<{ name: string; population: string }>({ name: '', population: '' });
+  const cityUnsubRef = useRef<(() => void) | null>(null);
   const { currentUser, isAdmin } = useAuth();
   const database = getDatabase();
 
@@ -82,14 +88,6 @@ const ReferenceDataManager: React.FC = () => {
       dbPath: 'referenceZones',
       fields: ['name', 'location', 'type'],
       bulkHelp: 'Enter one zone per line. Format: Name,Location,Type (e.g., Downtown,Berlin Center,Urban)'
-    },
-      cities: {
-        label: 'German Cities',
-        singular: 'City',
-        icon: '🏙️',
-        dbPath: 'referenceCities',
-        fields: ['name', 'population'],
-        bulkHelp: 'Enter one city per line. Format: CityName,Population'
     }
   };
 
@@ -121,6 +119,16 @@ const ReferenceDataManager: React.FC = () => {
 
     return () => unsubscribe();
   }, [activeCategory, database, currentConfig.dbPath]);
+
+  // Cleanup any city subscriptions on unmount
+  useEffect(() => {
+    return () => {
+      if (cityUnsubRef.current) {
+        cityUnsubRef.current();
+        cityUnsubRef.current = null;
+      }
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -723,7 +731,8 @@ const ReferenceDataManager: React.FC = () => {
               </tr>
             ) : (
               items.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50">
+                <React.Fragment key={item.id}>
+                <tr className="hover:bg-gray-50">
                   {currentConfig.fields.includes('code') && (
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-bold text-gray-900">{item.code}</div>
@@ -745,7 +754,38 @@ const ReferenceDataManager: React.FC = () => {
                           {activeCategory === 'countries' && (
                             <button
                               className="text-blue-600 hover:underline text-xs"
-                              onClick={() => setActiveCategory('cities')}
+                              onClick={() => {
+                                // toggle inline city list
+                                if (expandedCountry?.id === item.id) {
+                                  if (cityUnsubRef.current) { cityUnsubRef.current(); cityUnsubRef.current = null; }
+                                  setExpandedCountry(null);
+                                  return;
+                                }
+                                setExpandedCountry({ id: item.id, name: item.name });
+                                // unsubscribe previous
+                                if (cityUnsubRef.current) { cityUnsubRef.current(); cityUnsubRef.current = null; }
+                                const qCountry = query(ref(database, 'referenceCities'), orderByChild('country'), equalTo(item.name));
+                                const unsub = onValue(qCountry, (snapshot) => {
+                                  const data = snapshot.val() || {};
+                                  let list = Object.entries(data).map(([id, c]: [string, any]) => ({ id, ...(c as any) }));
+                                  // Include legacy German cities without country
+                                  if (item.name === 'Germany') {
+                                    onValue(ref(database, 'referenceCities'), (snapAll) => {
+                                      const all = snapAll.val() || {};
+                                      const legacy = Object.entries(all).map(([id, c]: [string, any]) => ({ id, ...(c as any) })).filter((c) => !c.country);
+                                      const merged: Record<string, any> = {};
+                                      [...list, ...legacy].forEach((c) => { merged[c.id] = c; });
+                                      list = Object.values(merged);
+                                      list.sort((a: any, b: any) => (b.population || 0) - (a.population || 0));
+                                      setCountryCities((prev) => ({ ...prev, [item.id]: list as any }));
+                                    }, { onlyOnce: true });
+                                  } else {
+                                    list.sort((a: any, b: any) => (b.population || 0) - (a.population || 0));
+                                    setCountryCities((prev) => ({ ...prev, [item.id]: list as any }));
+                                  }
+                                });
+                                cityUnsubRef.current = unsub;
+                              }}
                               title="View and manage cities"
                             >
                               City List
@@ -824,6 +864,41 @@ const ReferenceDataManager: React.FC = () => {
                     )}
                   </td>
                 </tr>
+                {activeCategory === 'countries' && expandedCountry?.id === item.id && (
+                  <tr>
+                    <td colSpan={6} className="px-6 pb-6">
+                      <div className="mt-2 border rounded-lg p-4 bg-gray-50">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-semibold">Cities in {expandedCountry.name}</h4>
+                          <button
+                            className="text-xs text-gray-600 hover:text-gray-900"
+                            onClick={() => {
+                              if (cityUnsubRef.current) { cityUnsubRef.current(); cityUnsubRef.current = null; }
+                              setExpandedCountry(null);
+                            }}
+                          >
+                            Close
+                          </button>
+                        </div>
+                        <div className="mt-3">
+                          {((countryCities[item.id] || []).length === 0) ? (
+                            <div className="text-sm text-gray-600">No cities found.</div>
+                          ) : (
+                            <ul className="space-y-1">
+                              {(countryCities[item.id] || []).map((c) => (
+                                <li key={c.id} className="flex items-center justify-between text-sm">
+                                  <span>{c.name}</span>
+                                  <span className="text-gray-500">{(c.population || 0).toLocaleString()}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
               ))
             )}
           </tbody>
