@@ -37,6 +37,7 @@ const ReferenceDataManager: React.FC = () => {
   const [countryCities, setCountryCities] = useState<Record<string, CityItem[]>>({});
   const [cityAddForm, setCityAddForm] = useState<{ name: string; population: string }>({ name: '', population: '' });
   const cityUnsubRef = useRef<(() => void) | null>(null);
+  const [cityEdit, setCityEdit] = useState<{ id: string; name: string; population: string } | null>(null);
   const { currentUser, isAdmin } = useAuth();
   const database = getDatabase();
 
@@ -880,15 +881,149 @@ const ReferenceDataManager: React.FC = () => {
                             Close
                           </button>
                         </div>
-                        <div className="mt-3">
+                        <div className="mt-3 space-y-3">
+                          {/* Quick Add City */}
+                          <div className="flex items-end gap-2">
+                            <div>
+                              <label className="block text-xs text-gray-600">City name</label>
+                              <input
+                                type="text"
+                                value={cityAddForm.name}
+                                onChange={(e) => setCityAddForm({ ...cityAddForm, name: e.target.value })}
+                                className="px-2 py-1 border rounded"
+                                placeholder="e.g., Munich"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-600">Population</label>
+                              <input
+                                type="number"
+                                value={cityAddForm.population}
+                                onChange={(e) => setCityAddForm({ ...cityAddForm, population: e.target.value })}
+                                className="px-2 py-1 border rounded w-28"
+                                placeholder="0"
+                              />
+                            </div>
+                            <button
+                              className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                              onClick={async () => {
+                                if (!currentUser || !expandedCountry) return;
+                                const name = cityAddForm.name.trim();
+                                if (!name) return;
+                                const pop = parseInt(cityAddForm.population || '0') || 0;
+                                await push(ref(database, 'referenceCities'), {
+                                  name,
+                                  population: pop,
+                                  country: expandedCountry.name,
+                                  dateAdded: new Date().toISOString(),
+                                  addedBy: currentUser.name || currentUser.email
+                                });
+                                await logAudit({
+                                  userId: currentUser.email,
+                                  userName: currentUser.name,
+                                  userEmail: currentUser.email,
+                                  action: 'create',
+                                  entityType: 'reference',
+                                  entityName: name,
+                                  metadata: { country: expandedCountry.name, population: pop }
+                                });
+                                setCityAddForm({ name: '', population: '' });
+                              }}
+                            >
+                              Add City
+                            </button>
+                          </div>
+
+                          {/* City List */}
                           {((countryCities[item.id] || []).length === 0) ? (
                             <div className="text-sm text-gray-600">No cities found.</div>
                           ) : (
                             <ul className="space-y-1">
                               {(countryCities[item.id] || []).map((c) => (
                                 <li key={c.id} className="flex items-center justify-between text-sm">
-                                  <span>{c.name}</span>
-                                  <span className="text-gray-500">{(c.population || 0).toLocaleString()}</span>
+                                  <div className="flex items-center gap-3">
+                                    {cityEdit?.id === c.id ? (
+                                      <>
+                                        <input
+                                          className="px-2 py-1 border rounded"
+                                          value={cityEdit.name}
+                                          onChange={(e) => setCityEdit({ ...(cityEdit as any), name: e.target.value })}
+                                        />
+                                        <input
+                                          type="number"
+                                          className="px-2 py-1 border rounded w-24"
+                                          value={cityEdit.population}
+                                          onChange={(e) => setCityEdit({ ...(cityEdit as any), population: e.target.value })}
+                                        />
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span>{c.name}</span>
+                                        <span className="text-gray-500">{(c.population || 0).toLocaleString()}</span>
+                                      </>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    {cityEdit?.id === c.id ? (
+                                      <>
+                                        <button
+                                          className="text-green-600 hover:text-green-800"
+                                          onClick={async () => {
+                                            if (!currentUser) return;
+                                            const newName = (cityEdit?.name || '').trim() || c.name;
+                                            const newPop = parseInt(cityEdit?.population || `${c.population || 0}`) || 0;
+                                            const oldData = { name: c.name, population: c.population || 0 };
+                                            const newData = { name: newName, population: newPop };
+                                            await update(ref(database, `referenceCities/${c.id}`), {
+                                              ...newData,
+                                              country: expandedCountry?.name || c.country,
+                                              dateAdded: new Date().toISOString(),
+                                              addedBy: currentUser.name || currentUser.email
+                                            });
+                                            await logAudit({
+                                              userId: currentUser.email,
+                                              userName: currentUser.name,
+                                              userEmail: currentUser.email,
+                                              action: 'update',
+                                              entityType: 'reference',
+                                              entityId: c.id,
+                                              entityName: newName,
+                                              changes: calculateChanges(oldData, newData),
+                                            });
+                                            setCityEdit(null);
+                                          }}
+                                        >
+                                          Save
+                                        </button>
+                                        <button className="text-gray-600 hover:text-gray-900" onClick={() => setCityEdit(null)}>Cancel</button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <button className="text-blue-600 hover:text-blue-900" onClick={() => setCityEdit({ id: c.id, name: c.name, population: `${c.population || ''}` })}>Edit</button>
+                                        {isAdmin && (
+                                          <button
+                                            className="text-red-600 hover:text-red-900"
+                                            onClick={async () => {
+                                              if (!isAdmin) return;
+                                              if (!window.confirm('Delete this city?')) return;
+                                              await remove(ref(database, `referenceCities/${c.id}`));
+                                              await logAudit({
+                                                userId: currentUser?.email || '',
+                                                userName: currentUser?.name || '',
+                                                userEmail: currentUser?.email || '',
+                                                action: 'delete',
+                                                entityType: 'reference',
+                                                entityId: c.id,
+                                                entityName: c.name,
+                                              });
+                                            }}
+                                          >
+                                            Delete
+                                          </button>
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
                                 </li>
                               ))}
                             </ul>
