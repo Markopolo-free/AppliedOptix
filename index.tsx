@@ -4,6 +4,8 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 // Ensure the external store shim is loaded after React and resolves consistently
 import 'use-sync-external-store/shim/index.js';
+// Import theme CSS for dynamic theming
+import './theme.css';
 
 type EBState = { error: any };
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBState> {

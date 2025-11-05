@@ -36,10 +36,54 @@ const DebugSecrets: React.FC = () => {
     alert('JSON copied to clipboard! Paste it into test-credentials.json');
   };
 
+  // Drag state
+  const [dragging, setDragging] = useState(false);
+  const [pos, setPos] = useState<{x: number, y: number}>({ x: 0, y: 0 });
+  const dragRef = React.useRef<HTMLDivElement>(null);
+
+  // Touch/mouse drag handlers
+  const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
+    setDragging(true);
+    e.stopPropagation();
+  };
+  const handleDragEnd = () => setDragging(false);
+  const handleDragMove = (e: MouseEvent | TouchEvent) => {
+    if (!dragging) return;
+    let clientX = 0, clientY = 0;
+    if ('touches' in e && e.touches.length) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else if ('clientX' in e) {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    setPos({ x: clientX, y: clientY });
+  };
+  useEffect(() => {
+    if (!dragging) return;
+    const move = (e: any) => handleDragMove(e);
+    const up = () => setDragging(false);
+    window.addEventListener('mousemove', move);
+    window.addEventListener('touchmove', move);
+    window.addEventListener('mouseup', up);
+    window.addEventListener('touchend', up);
+    return () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('touchmove', move);
+      window.removeEventListener('mouseup', up);
+      window.removeEventListener('touchend', up);
+    };
+  }, [dragging]);
+
+  // Initial position: bottom right, but allow drag
+  const style = dragging || pos.x || pos.y
+    ? { position: 'fixed', left: pos.x ? pos.x : undefined, top: pos.y ? pos.y : undefined, zIndex: 50, maxWidth: '32rem', maxHeight: '80vh', overflowY: 'auto' }
+    : { position: 'fixed', bottom: '1rem', right: '1rem', zIndex: 50, maxWidth: '32rem', maxHeight: '80vh', overflowY: 'auto' };
+
   return (
-    <div className="fixed bottom-4 right-4 bg-white border-2 border-red-500 p-4 rounded-lg shadow-lg max-w-2xl max-h-[80vh] overflow-y-auto z-50">
-      <div className="flex justify-between items-center mb-2">
-        <h3 className="font-bold text-red-600">DEBUG: Test Credentials & Users</h3>
+    <div ref={dragRef} style={style} className="bg-white border-2 border-red-500 p-4 rounded-lg shadow-lg">
+      <div className="flex justify-between items-center mb-2 cursor-move" onMouseDown={handleDragStart} onTouchStart={handleDragStart} onMouseUp={handleDragEnd} onTouchEnd={handleDragEnd}>
+        <h3 className="font-bold text-red-600 select-none">DEBUG: Test Credentials & Users</h3>
         <div className="flex gap-2">
           <button
             onClick={() => setShowPasswords(!showPasswords)}

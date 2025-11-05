@@ -1,12 +1,15 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { ref, get, push, set, serverTimestamp, update, remove } from 'firebase/database';
+import { ref, get, push, set, serverTimestamp, update, remove, onValue, getDatabase } from 'firebase/database';
 import { db } from '../services/firebase';
 import { LoyaltyProgram, Bundle, Service, DiscountType } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import { logAudit, calculateChanges } from '../services/auditService';
 
 const initialNewProgramState = {
     name: '',
     description: '',
-    pointsPerEuro: '',
+    cityName: '',
+    pointsPerEuro: ''
 };
 
 const initialNewBundleState = {
@@ -20,6 +23,7 @@ const initialNewBundleState = {
 };
 
 const LoyaltyManager: React.FC = () => {
+  const { currentUser } = useAuth();
   // State for Loyalty Programs
   const [programs, setPrograms] = useState<LoyaltyProgram[]>([]);
   const [isProgramModalOpen, setIsProgramModalOpen] = useState(false);
@@ -34,6 +38,28 @@ const LoyaltyManager: React.FC = () => {
   const [editingBundle, setEditingBundle] = useState<Bundle | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [cities, setCities] = useState<Array<{ id: string; name: string; population: number }>>([]);
+
+  // Fetch cities from reference data
+  useEffect(() => {
+    const database = getDatabase();
+    const citiesRef = ref(database, 'referenceCities');
+    const unsubscribe = onValue(citiesRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const citiesArray = Object.entries(data).map(([id, city]: [string, any]) => ({
+          id,
+          name: city.name,
+          population: city.population
+        }));
+        // Sort by population (descending)
+        citiesArray.sort((a, b) => b.population - a.population);
+        setCities(citiesArray);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -94,7 +120,7 @@ const LoyaltyManager: React.FC = () => {
   
   const handleOpenProgramModalForEdit = (program: LoyaltyProgram) => {
       setEditingProgram(program);
-      setNewProgram({ name: program.name, description: program.description, pointsPerEuro: String(program.pointsPerEuro) });
+      setNewProgram({ name: program.name, description: program.description, cityName: program.cityName || '', pointsPerEuro: String(program.pointsPerEuro) });
       setIsProgramModalOpen(true);
   };
 
@@ -105,12 +131,41 @@ const LoyaltyManager: React.FC = () => {
 
   const handleSaveProgram = async (e: React.FormEvent) => {
     e.preventDefault();
-    const programData = { name: newProgram.name, description: newProgram.description, pointsPerEuro: parseInt(newProgram.pointsPerEuro, 10) || 0, lastModifiedBy: 'usr_admin', lastModifiedAt: serverTimestamp() };
+    const programData = { name: newProgram.name, description: newProgram.description, cityName: newProgram.cityName, pointsPerEuro: parseInt(newProgram.pointsPerEuro, 10) || 0, lastModifiedBy: 'usr_admin', lastModifiedAt: serverTimestamp() };
     try {
         if (editingProgram) {
             await update(ref(db, `loyaltyPrograms/${editingProgram.id}`), programData);
+
+            // Log audit for update
+            if (currentUser) {
+                const changes = calculateChanges(editingProgram, programData);
+                await logAudit({
+                    userId: currentUser.email,
+                    userName: currentUser.name,
+                    userEmail: currentUser.email,
+                    action: 'update',
+                    entityType: 'loyalty',
+                    entityId: editingProgram.id,
+                    entityName: programData.name,
+                    changes,
+                });
+            }
         } else {
-            await set(push(ref(db, 'loyaltyPrograms')), programData);
+            const newProgramRef = push(ref(db, 'loyaltyPrograms'));
+            await set(newProgramRef, programData);
+
+            // Log audit for create
+            if (currentUser) {
+                await logAudit({
+                    userId: currentUser.email,
+                    userName: currentUser.name,
+                    userEmail: currentUser.email,
+                    action: 'create',
+                    entityType: 'loyalty',
+                    entityId: newProgramRef.key || '',
+                    entityName: programData.name,
+                });
+            }
         }
         setIsProgramModalOpen(false);
         fetchData();
@@ -123,7 +178,24 @@ const LoyaltyManager: React.FC = () => {
   const handleDeleteProgram = async (programId: string) => {
       if (window.confirm('Are you sure you want to delete this loyalty program?')) {
           try {
+              // Get program details before deletion for audit log
+              const programToDelete = programs.find(p => p.id === programId);
+              
               await remove(ref(db, `loyaltyPrograms/${programId}`));
+              
+              // Log audit for delete
+              if (currentUser && programToDelete) {
+                  await logAudit({
+                      userId: currentUser.email,
+                      userName: currentUser.name,
+                      userEmail: currentUser.email,
+                      action: 'delete',
+                      entityType: 'loyalty',
+                      entityId: programId,
+                      entityName: programToDelete.name,
+                  });
+              }
+              
               fetchData();
           } catch(error) {
               console.error("Error deleting program:", error);
@@ -222,7 +294,14 @@ const LoyaltyManager: React.FC = () => {
                 programs.map((program) => (
                 <div key={program.id} className="bg-white p-6 rounded-xl shadow-md border border-gray-200 flex flex-col justify-between">
                     <div>
-                        <h3 className="text-xl font-bold text-gray-800">{program.name}</h3>
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-xl font-bold text-gray-800">{program.name}</h3>
+                            {program.cityName && (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
+                                    📍 {program.cityName}
+                                </span>
+                            )}
+                        </div>
                         <p className="text-gray-600 mt-2">{program.description}</p>
                         <div className="mt-4"><span className="text-sm font-medium text-gray-500">Points per € spent</span><p className="text-2xl font-bold text-primary-600">{program.pointsPerEuro}</p></div>
                         <div className="text-xs text-gray-400 mt-4">Last modified: {new Date(program.lastModifiedAt).toLocaleString()} by {program.lastModifiedBy}</div>
@@ -276,7 +355,29 @@ const LoyaltyManager: React.FC = () => {
                 <form onSubmit={handleSaveProgram}>
                     <div className="mb-4"><label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Program Name</label><input type="text" id="name" name="name" value={newProgram.name} onChange={handleProgramInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required /></div>
                     <div className="mb-4"><label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">Description</label><textarea id="description" name="description" value={newProgram.description} onChange={handleProgramInputChange} rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required></textarea></div>
-                    <div className="mb-6"><label htmlFor="pointsPerEuro" className="block text-sm font-medium text-gray-700 mb-1">Points per Euro (€)</label><input type="number" id="pointsPerEuro" name="pointsPerEuro" value={newProgram.pointsPerEuro} onChange={handleProgramInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required /></div>
+                    <div className="mb-4">
+                      <label htmlFor="cityName" className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                      <select 
+                        id="cityName" 
+                        name="cityName" 
+                        value={newProgram.cityName} 
+                        onChange={handleProgramInputChange} 
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                      >
+                        <option value="">Select a city...</option>
+                        {cities.map((city) => (
+                          <option key={city.id} value={city.name}>
+                            {city.name}
+                          </option>
+                        ))}
+                      </select>
+                      {cities.length === 0 && (
+                        <p className="mt-1 text-sm text-gray-500">
+                          No cities available. Add cities in Reference Data first.
+                        </p>
+                      )}
+                    </div>
+                    <div className="mb-4"><label htmlFor="pointsPerEuro" className="block text-sm font-medium text-gray-700 mb-1">Points Per Euro</label><input type="number" id="pointsPerEuro" name="pointsPerEuro" value={newProgram.pointsPerEuro} onChange={handleProgramInputChange} min="0" step="0.01" className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required /></div>
                     <div className="flex justify-end space-x-4"><button type="button" onClick={() => setIsProgramModalOpen(false)} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Cancel</button><button type="submit" className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">{editingProgram ? 'Save Changes' : 'Save Program'}</button></div>
                 </form>
             </div>

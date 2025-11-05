@@ -8,6 +8,7 @@ interface AuthUser {
   email: string;
   name: string;
   role: UserRole;
+  profilePicture?: string; // Base64 or URL
 }
 
 interface AuthContextType {

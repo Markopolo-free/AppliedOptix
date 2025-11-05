@@ -2,14 +2,17 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ref, get, push, set, serverTimestamp, update, remove } from 'firebase/database';
 import { db } from '../services/firebase';
 import { User, UserRole } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import { logAudit, calculateChanges } from '../services/auditService';
 
 const UserManager: React.FC = () => {
+  const { currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
   // State for the form, used for both adding and editing
-  const [formData, setFormData] = useState({ name: '', email: '', role: UserRole.Maker });
+  const [formData, setFormData] = useState({ name: '', email: '', role: UserRole.Maker, profilePicture: '' });
   // State to track which user is being edited, if any
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
@@ -28,6 +31,7 @@ const UserManager: React.FC = () => {
                   name: userData.name || '',
                   email: userData.email || '',
                   role: userData.role || UserRole.Maker,
+                  profilePicture: userData.profilePicture,
                   createdAt: new Date(userData.createdAt).toISOString(),
                   lastModifiedAt: userData.lastModifiedAt ? new Date(userData.lastModifiedAt).toISOString() : undefined,
                   lastModifiedBy: userData.lastModifiedBy,
@@ -54,16 +58,45 @@ const UserManager: React.FC = () => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (limit to 500KB)
+    if (file.size > 500 * 1024) {
+      alert('Image size should be less than 500KB. Please choose a smaller image.');
+      return;
+    }
+
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select a valid image file.');
+      return;
+    }
+
+    // Convert to Base64
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      setFormData(prev => ({ ...prev, profilePicture: base64String }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveImage = () => {
+    setFormData(prev => ({ ...prev, profilePicture: '' }));
+  };
   
   const handleOpenModalForAdd = () => {
     setEditingUser(null);
-    setFormData({ name: '', email: '', role: UserRole.Maker });
+    setFormData({ name: '', email: '', role: UserRole.Maker, profilePicture: '' });
     setIsModalOpen(true);
   };
 
   const handleOpenModalForEdit = (user: User) => {
     setEditingUser(user);
-    setFormData({ name: user.name, email: user.email, role: user.role });
+    setFormData({ name: user.name, email: user.email, role: user.role, profilePicture: user.profilePicture || '' });
     setIsModalOpen(true);
   };
 
@@ -80,8 +113,26 @@ const UserManager: React.FC = () => {
             await update(userRef, {
                 ...formData,
                 lastModifiedAt: serverTimestamp(),
-                lastModifiedBy: 'admin_user_placeholder',
+                lastModifiedBy: currentUser.email,
             });
+
+            // Log audit for update
+            if (currentUser) {
+                const changes = calculateChanges(
+                    { name: editingUser.name, email: editingUser.email, role: editingUser.role, profilePicture: editingUser.profilePicture },
+                    formData
+                );
+                await logAudit({
+                    userId: currentUser.email,
+                    userName: currentUser.name,
+                    userEmail: currentUser.email,
+                    action: 'update',
+                    entityType: 'user',
+                    entityId: editingUser.id,
+                    entityName: formData.name,
+                    changes,
+                });
+            }
         } else {
             // Add new user
             const usersListRef = ref(db, 'users');
@@ -90,8 +141,21 @@ const UserManager: React.FC = () => {
                 ...formData,
                 createdAt: serverTimestamp(),
                 lastModifiedAt: serverTimestamp(),
-                lastModifiedBy: 'admin_user_placeholder',
+                lastModifiedBy: currentUser.email,
             });
+
+            // Log audit for create
+            if (currentUser) {
+                await logAudit({
+                    userId: currentUser.email,
+                    userName: currentUser.name,
+                    userEmail: currentUser.email,
+                    action: 'create',
+                    entityType: 'user',
+                    entityId: newUserRef.key || '',
+                    entityName: formData.name,
+                });
+            }
         }
 
         setIsModalOpen(false);
@@ -106,7 +170,24 @@ const UserManager: React.FC = () => {
   const handleDeleteUser = async (userId: string) => {
       if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
           try {
+              // Get user details before deletion for audit log
+              const userToDelete = users.find(u => u.id === userId);
+              
               await remove(ref(db, `users/${userId}`));
+              
+              // Log audit for delete
+              if (currentUser && userToDelete) {
+                  await logAudit({
+                      userId: currentUser.email,
+                      userName: currentUser.name,
+                      userEmail: currentUser.email,
+                      action: 'delete',
+                      entityType: 'user',
+                      entityId: userId,
+                      entityName: userToDelete.name,
+                  });
+              }
+              
               await fetchUsers();
           } catch (error) {
               console.error("Error deleting user:", error);
@@ -148,7 +229,7 @@ const UserManager: React.FC = () => {
                         <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                             <div className="flex-shrink-0 h-10 w-10">
-                            <img className="h-10 w-10 rounded-full" src={`https://i.pravatar.cc/40?u=${user.id}`} alt="" />
+                            <img className="h-10 w-10 rounded-full object-cover" src={user.profilePicture || `https://i.pravatar.cc/40?u=${user.id}`} alt={user.name} />
                             </div>
                             <div className="ml-4">
                             <div className="font-medium text-gray-900">{user.name}</div>
@@ -195,6 +276,21 @@ const UserManager: React.FC = () => {
                     <div className="mb-4">
                         <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
                         <input type="email" id="email" name="email" value={formData.email} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required />
+                    </div>
+                    <div className="mb-4">
+                        <label htmlFor="profilePicture" className="block text-sm font-medium text-gray-700 mb-1">Profile Picture (Optional)</label>
+                        <div className="flex items-center space-x-4">
+                            {formData.profilePicture && (
+                                <div className="relative">
+                                    <img src={formData.profilePicture} alt="Profile Preview" className="w-20 h-20 rounded-full object-cover border-2 border-gray-300" />
+                                    <button type="button" onClick={handleRemoveImage} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600" title="Remove picture">×</button>
+                                </div>
+                            )}
+                            <div className="flex-1">
+                                <input type="file" id="profilePicture" accept="image/*" onChange={handleImageUpload} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-sm" />
+                                <p className="text-xs text-gray-500 mt-1">Max size: 500KB. Supported formats: JPG, PNG, GIF</p>
+                            </div>
+                        </div>
                     </div>
                     <div className="mb-6">
                         <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">User Role</label>

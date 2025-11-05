@@ -1,12 +1,15 @@
 
 import React from 'react';
 import { MenuIcon } from './icons';
+import { useAuth } from '../contexts/AuthContext';
 
 interface HeaderProps {
   toggleSidebar: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
+  const { currentUser } = useAuth();
+  const avatarSrc = currentUser?.profilePicture || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(currentUser?.name || 'User') + '&background=0D8ABC&color=fff&size=100';
   return (
     <header className="flex items-center justify-between px-6 py-4 bg-white border-b-2 border-gray-200 shadow-sm">
       <div className="flex items-center">
@@ -25,10 +28,10 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
 
       <div className="flex items-center">
         <div className="flex items-center">
-          <img className="object-cover w-10 h-10 rounded-full" src="https://picsum.photos/100/100" alt="Avatar" />
+          <img className="object-cover w-10 h-10 rounded-full border border-gray-200" src={avatarSrc} alt={currentUser?.name || 'User Avatar'} />
           <div className="ml-2 hidden sm:block">
-            <p className="text-sm font-medium text-gray-700">Admin User</p>
-            <p className="text-xs text-gray-500">Administrator</p>
+            <p className="text-sm font-medium text-gray-700">{currentUser?.name || 'User'}</p>
+            <p className="text-xs text-gray-500">{currentUser?.role || ''}</p>
           </div>
         </div>
       </div>

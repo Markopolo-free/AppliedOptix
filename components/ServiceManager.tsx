@@ -2,18 +2,23 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ref, get, push, set, serverTimestamp, update, remove } from 'firebase/database';
 import { db } from '../services/firebase';
 import { Service, ServiceStatus } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import { logAudit, calculateChanges } from '../services/auditService';
 
 const initialNewServiceState = {
     name: '',
     description: '',
     type: 'Electric Car',
     price: '',
+    minChargeAmount: '0.00',
     currency: 'EUR',
     status: ServiceStatus.Available,
     location: '',
+    effectiveDate: new Date().toISOString().split('T')[0], // Default to today
 };
 
 const ServiceManager: React.FC = () => {
+    const { currentUser } = useAuth();
     const [services, setServices] = useState<Service[]>([]);
     const [serviceTypes, setServiceTypes] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -24,26 +29,18 @@ const ServiceManager: React.FC = () => {
     const [editingService, setEditingService] = useState<Service | null>(null);
 
     const fetchAndSeedServiceTypes = useCallback(async () => {
-        const typesRef = ref(db, 'serviceTypes');
+        // Load service types from reference data
+        const typesRef = ref(db, 'referenceServiceTypes');
         const snapshot = await get(typesRef);
         let types: string[] = [];
         if (snapshot.exists()) {
             const data = snapshot.val();
-            types = Object.values(data) as string[];
+            // Extract names from reference data structure
+            types = Object.values(data).map((item: any) => item.name);
             setServiceTypes(types);
         } else {
-            // Seed initial data if it doesn't exist
-            const initialTypes = ['Electric Car', 'eScooter', 'eBike', 'Bus', 'Train', 'Pay-as-you-go Office', 'Health Clinic'];
-            const updates: { [key: string]: string } = {};
-            initialTypes.forEach(typeName => {
-                const newKey = push(typesRef).key;
-                if (newKey) {
-                    updates[newKey] = typeName;
-                }
-            });
-            await set(typesRef, updates);
-            types = initialTypes;
-            setServiceTypes(initialTypes);
+            // If no reference data exists, provide empty array
+            setServiceTypes([]);
         }
         // Ensure form default type is a valid one
         if (types.length > 0 && initialNewServiceState.type !== types[0]) {
@@ -99,9 +96,11 @@ const ServiceManager: React.FC = () => {
             description: service.description,
             type: service.type,
             price: String(service.price),
+            minChargeAmount: service.minChargeAmount !== undefined ? String(service.minChargeAmount) : '0.00',
             currency: service.currency,
             status: service.status,
             location: service.location,
+               effectiveDate: service.effectiveDate || new Date().toISOString().split('T')[0],
         });
         setIsModalOpen(true);
     };
@@ -116,6 +115,7 @@ const ServiceManager: React.FC = () => {
         const serviceData = {
             ...formData,
             price: parseFloat(formData.price) || 0,
+            minChargeAmount: parseFloat((formData as any).minChargeAmount) || 0,
             lastModifiedBy: 'usr_admin',
             lastModifiedAt: serverTimestamp(),
         };
@@ -124,10 +124,38 @@ const ServiceManager: React.FC = () => {
             if (editingService) {
                 const serviceRef = ref(db, `services/${editingService.id}`);
                 await update(serviceRef, serviceData);
+
+                // Log audit for update
+                if (currentUser) {
+                    const changes = calculateChanges(editingService, serviceData);
+                    await logAudit({
+                        userId: currentUser.email,
+                        userName: currentUser.name,
+                        userEmail: currentUser.email,
+                        action: 'update',
+                        entityType: 'service',
+                        entityId: editingService.id,
+                        entityName: serviceData.name,
+                        changes,
+                    });
+                }
             } else {
                 const servicesListRef = ref(db, 'services');
                 const newServiceRef = push(servicesListRef);
                 await set(newServiceRef, serviceData);
+
+                // Log audit for create
+                if (currentUser) {
+                    await logAudit({
+                        userId: currentUser.email,
+                        userName: currentUser.name,
+                        userEmail: currentUser.email,
+                        action: 'create',
+                        entityType: 'service',
+                        entityId: newServiceRef.key || '',
+                        entityName: serviceData.name,
+                    });
+                }
             }
             setIsModalOpen(false);
             setEditingService(null);
@@ -148,10 +176,15 @@ const ServiceManager: React.FC = () => {
             alert("This service type already exists.");
             return;
         }
-        const typesRef = ref(db, 'serviceTypes');
+        // Save to reference data with proper structure
+        const typesRef = ref(db, 'referenceServiceTypes');
         const newTypeRef = push(typesRef);
         try {
-            await set(newTypeRef, trimmedTypeName);
+            await set(newTypeRef, {
+                name: trimmedTypeName,
+                dateAdded: new Date().toISOString(),
+                addedBy: currentUser?.name || currentUser?.email || 'System'
+            });
             const updatedTypes = [...serviceTypes, trimmedTypeName];
             setServiceTypes(updatedTypes);
             setFormData(prev => ({ ...prev, type: trimmedTypeName }));
@@ -166,7 +199,24 @@ const ServiceManager: React.FC = () => {
     const handleDeleteService = async (serviceId: string) => {
         if (window.confirm('Are you sure you want to delete this service?')) {
             try {
+                // Get service details before deletion for audit log
+                const serviceToDelete = services.find(s => s.id === serviceId);
+                
                 await remove(ref(db, `services/${serviceId}`));
+                
+                // Log audit for delete
+                if (currentUser && serviceToDelete) {
+                    await logAudit({
+                        userId: currentUser.email,
+                        userName: currentUser.name,
+                        userEmail: currentUser.email,
+                        action: 'delete',
+                        entityType: 'service',
+                        entityId: serviceId,
+                        entityName: serviceToDelete.name,
+                    });
+                }
+                
                 await fetchServices();
             } catch (error) {
                 console.error("Error deleting service:", error);
@@ -200,17 +250,19 @@ const ServiceManager: React.FC = () => {
                             <tr>
                                 <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Service Name</th>
                                 <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Min Charge</th>
                                 <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                                   <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Effective Date</th>
                                 <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                 <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Last Modified</th>
                                 <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {isLoading ? (
-                                <tr><td colSpan={6} className="text-center py-10 text-gray-500">Loading services...</td></tr>
-                            ) : services.length === 0 ? (
-                                <tr><td colSpan={6} className="text-center py-10 text-gray-500">No services found.</td></tr>
+                {isLoading ? (
+                    <tr><td colSpan={8} className="text-center py-10 text-gray-500">Loading services...</td></tr>
+                ) : services.length === 0 ? (
+                    <tr><td colSpan={8} className="text-center py-10 text-gray-500">No services found.</td></tr>
                             ) : (
                                 services.map((service) => (
                                     <tr key={service.id}>
@@ -219,9 +271,15 @@ const ServiceManager: React.FC = () => {
                                             <div className="text-gray-500">{service.location}</div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-gray-700">{service.type}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-gray-700">
+                                            {new Intl.NumberFormat('de-DE', { style: 'currency', currency: service.currency }).format((service.minChargeAmount ?? 0))}
+                                        </td>
                                         <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
                                             {new Intl.NumberFormat('de-DE', { style: 'currency', currency: service.currency }).format(service.price)}
                                         </td>
+                                           <td className="px-6 py-4 whitespace-nowrap text-gray-700">
+                                               {service.effectiveDate ? new Date(service.effectiveDate).toLocaleDateString() : 'N/A'}
+                                           </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(service.status)}`}>
                                                 {service.status}
@@ -270,9 +328,17 @@ const ServiceManager: React.FC = () => {
                                     <label htmlFor="location" className="block text-sm font-medium text-gray-700">Location</label>
                                     <input type="text" name="location" id="location" value={formData.location} onChange={handleInputChange} placeholder="e.g. Berlin" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
                                 </div>
+                                   <div>
+                                       <label htmlFor="effectiveDate" className="block text-sm font-medium text-gray-700">Effective Date</label>
+                                       <input type="date" name="effectiveDate" id="effectiveDate" value={formData.effectiveDate} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required />
+                                   </div>
                                 <div>
                                     <label htmlFor="price" className="block text-sm font-medium text-gray-700">Price</label>
                                     <input type="number" name="price" id="price" value={formData.price} onChange={handleInputChange} step="0.01" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required />
+                                </div>
+                                <div>
+                                    <label htmlFor="minChargeAmount" className="block text-sm font-medium text-gray-700">Minimum Charge Amount (optional)</label>
+                                    <input type="number" name="minChargeAmount" id="minChargeAmount" value={(formData as any).minChargeAmount} onChange={handleInputChange} step="0.01" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
                                 </div>
                                 <div>
                                     <label htmlFor="currency" className="block text-sm font-medium text-gray-700">Currency</label>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import GreenBoltIcon from './GreenBoltIcon';
 import { userEmailExists, getUserByEmail } from './userManagementService';
 import { validateCredentials } from '../services/testCredentialsService';
@@ -17,15 +17,41 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
 
+  // Persist and prefill last used email
+  const LAST_EMAIL_KEY = 'lastEmail';
+  const REMEMBER_EMAIL_KEY = 'rememberEmail';
+  const [rememberEmail, setRememberEmail] = useState<boolean>(true);
+  useEffect(() => {
+    try {
+      const remember = localStorage.getItem(REMEMBER_EMAIL_KEY);
+      if (remember !== null) {
+        setRememberEmail(remember === 'true');
+      }
+      if (remember === null || remember === 'true') {
+        const last = localStorage.getItem(LAST_EMAIL_KEY);
+        if (last) setEmail(last);
+      }
+    } catch (_) {
+      // ignore storage errors (e.g., privacy mode)
+    }
+  }, []);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    try {
+      if (rememberEmail) {
+        localStorage.setItem(LAST_EMAIL_KEY, email);
+      } else {
+        localStorage.removeItem(LAST_EMAIL_KEY);
+      }
+    } catch (_){ /* ignore */ }
     if (await userEmailExists(email)) {
       // Validate password against test credentials file
       if (validateCredentials(email, password)) {
         // Get user details from UserManager DB
         const user = await getUserByEmail(email);
         if (user) {
-          setCurrentUser({ email: user.email, name: user.name, role: user.role });
+          setCurrentUser({ email: user.email, name: user.name, role: user.role, profilePicture: user.profilePicture });
         }
         setStep('success');
         setError('');
@@ -50,6 +76,26 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
     setError('Registration disabled. Contact administrator to add test credentials.');
   };
 
+  const handleClearEmail = () => {
+    try { localStorage.removeItem(LAST_EMAIL_KEY); } catch (_) { /* ignore */ }
+    setEmail('');
+  };
+
+  const handleToggleRemember = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const checked = e.target.checked;
+    setRememberEmail(checked);
+    try {
+      localStorage.setItem(REMEMBER_EMAIL_KEY, String(checked));
+      if (!checked) {
+        // If turning off remember, clear any saved email immediately
+        localStorage.removeItem(LAST_EMAIL_KEY);
+      } else if (email) {
+        // If turning on remember and an email exists, persist it
+        localStorage.setItem(LAST_EMAIL_KEY, email);
+      }
+    } catch (_) { /* ignore */ }
+  };
+
   return (
     <div className="flex h-screen bg-gray-100 font-sans">
       {/* Left nav style */}
@@ -67,7 +113,22 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Email Address</label>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg" required />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => { const v = e.target.value; setEmail(v); try { if (rememberEmail) { localStorage.setItem(LAST_EMAIL_KEY, v); } } catch(_){} }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                  required
+                />
+                <div className="mt-1 text-right">
+                  <div className="mt-1 flex items-center justify-between">
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                      <input type="checkbox" className="form-checkbox" checked={rememberEmail} onChange={handleToggleRemember} />
+                      Remember this email
+                    </label>
+                    <button type="button" onClick={handleClearEmail} className="text-sm text-gray-500 hover:text-gray-700 underline">Clear saved email</button>
+                  </div>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Password</label>
@@ -85,7 +146,22 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Email Address</label>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg" required />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => { const v = e.target.value; setEmail(v); try { if (rememberEmail) { localStorage.setItem(LAST_EMAIL_KEY, v); } } catch(_){} }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                  required
+                />
+                <div className="mt-1 text-right">
+                  <div className="mt-1 flex items-center justify-between">
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                      <input type="checkbox" className="form-checkbox" checked={rememberEmail} onChange={handleToggleRemember} />
+                      Remember this email
+                    </label>
+                    <button type="button" onClick={handleClearEmail} className="text-sm text-gray-500 hover:text-gray-700 underline">Clear saved email</button>
+                  </div>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Password</label>

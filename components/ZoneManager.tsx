@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ref, get, push, set, serverTimestamp, update, remove } from 'firebase/database';
+import { ref, get, push, set, serverTimestamp, update, remove, onValue, getDatabase } from 'firebase/database';
 import { db } from '../services/firebase';
-import { Zone, ZoneType } from '../types';
+import { Zone } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { logAudit, calculateChanges } from '../services/auditService';
 
 const initialNewZoneState = {
     name: '',
-    type: ZoneType.CityCenter,
+    type: '',
     location: '',
 };
 
@@ -17,11 +18,54 @@ const ZoneManager: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [newZone, setNewZone] = useState(initialNewZoneState);
     const [editingZone, setEditingZone] = useState<Zone | null>(null);
+    const [cities, setCities] = useState<Array<{ id: string; name: string; population: number }>>([]);
+    const [zoneTypes, setZoneTypes] = useState<Array<{ id: string; name: string }>>([]);
+
+    // Fetch zone types from reference data
+    useEffect(() => {
+        const database = getDatabase();
+        const zoneTypesRef = ref(database, 'referenceZoneTypes');
+        const unsubscribe = onValue(zoneTypesRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                const typesArray = Object.entries(data).map(([id, type]: [string, any]) => ({
+                    id,
+                    name: type.name
+                }));
+                typesArray.sort((a, b) => a.name.localeCompare(b.name));
+                setZoneTypes(typesArray);
+            } else {
+                setZoneTypes([]);
+            }
+        });
+        return () => unsubscribe();
+    }, []);
+
+    // Fetch cities from reference data
+    useEffect(() => {
+        const database = getDatabase();
+        const citiesRef = ref(database, 'referenceCities');
+        const unsubscribe = onValue(citiesRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                const citiesArray = Object.entries(data).map(([id, city]: [string, any]) => ({
+                    id,
+                    name: city.name,
+                    population: city.population
+                }));
+                // Sort by population (descending)
+                citiesArray.sort((a, b) => b.population - a.population);
+                setCities(citiesArray);
+            }
+        });
+
+        return () => unsubscribe();
+    }, []);
 
     const fetchZones = useCallback(async () => {
         setIsLoading(true);
         try {
-            const zonesRef = ref(db, 'zones');
+            const zonesRef = ref(db, 'referenceZones');
             const snapshot = await get(zonesRef);
             if (snapshot.exists()) {
                 const data = snapshot.val();
@@ -84,22 +128,53 @@ const ZoneManager: React.FC = () => {
         }
         try {
             const modifiedBy = currentUser?.name || currentUser?.email || 'Unknown User';
-            
+
             if (editingZone) {
-                const zoneRef = ref(db, `zones/${editingZone.id}`);
+                const zoneRef = ref(db, `referenceZones/${editingZone.id}`);
                 await update(zoneRef, {
                     ...newZone,
                     lastModifiedBy: modifiedBy,
                     lastModifiedAt: serverTimestamp(),
                 });
+
+                // Log audit for update
+                if (currentUser) {
+                    const changes = calculateChanges(
+                        { name: editingZone.name, type: editingZone.type, location: editingZone.location },
+                        newZone
+                    );
+                    await logAudit({
+                        userId: currentUser.email,
+                        userName: currentUser.name,
+                        userEmail: currentUser.email,
+                        action: 'update',
+                        entityType: 'zone',
+                        entityId: editingZone.id,
+                        entityName: newZone.name,
+                        changes,
+                    });
+                }
             } else {
-                const zonesListRef = ref(db, 'zones');
+                const zonesListRef = ref(db, 'referenceZones');
                 const newZoneRef = push(zonesListRef);
                 await set(newZoneRef, {
                     ...newZone,
                     lastModifiedBy: modifiedBy,
                     lastModifiedAt: serverTimestamp(),
                 });
+
+                // Log audit for create
+                if (currentUser) {
+                    await logAudit({
+                        userId: currentUser.email,
+                        userName: currentUser.name,
+                        userEmail: currentUser.email,
+                        action: 'create',
+                        entityType: 'zone',
+                        entityId: newZoneRef.key || '',
+                        entityName: newZone.name,
+                    });
+                }
             }
             setIsModalOpen(false);
             setEditingZone(null);
@@ -108,12 +183,27 @@ const ZoneManager: React.FC = () => {
             console.error("Error saving zone: ", error);
             alert("Failed to save zone. See console for details.");
         }
-    };
-    
-    const handleDeleteZone = async (zoneId: string) => {
+    };    const handleDeleteZone = async (zoneId: string) => {
         if(window.confirm('Are you sure you want to delete this zone?')) {
             try {
-                await remove(ref(db, `zones/${zoneId}`));
+                // Get zone details before deletion for audit log
+                const zoneToDelete = zones.find(z => z.id === zoneId);
+
+                await remove(ref(db, `referenceZones/${zoneId}`));
+
+                // Log audit for delete
+                if (currentUser && zoneToDelete) {
+                    await logAudit({
+                        userId: currentUser.email,
+                        userName: currentUser.name,
+                        userEmail: currentUser.email,
+                        action: 'delete',
+                        entityType: 'zone',
+                        entityId: zoneId,
+                        entityName: zoneToDelete.name,
+                    });
+                }
+                
                 await fetchZones();
             } catch (error) {
                 console.error("Error deleting zone:", error);
@@ -190,13 +280,49 @@ const ZoneManager: React.FC = () => {
                             </div>
                              <div className="mb-4">
                                 <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">Location (City)</label>
-                                <input type="text" id="location" name="location" value={newZone.location} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="e.g. Berlin" required />
+                                <select 
+                                    id="location" 
+                                    name="location" 
+                                    value={newZone.location} 
+                                    onChange={handleInputChange} 
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" 
+                                    required
+                                >
+                                    <option value="">Select a city...</option>
+                                    {cities.map((city) => (
+                                        <option key={city.id} value={city.name}>
+                                            {city.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                {cities.length === 0 && (
+                                    <p className="mt-1 text-sm text-gray-500">
+                                        No cities available. Add cities in Reference Data first.
+                                    </p>
+                                )}
                             </div>
                             <div className="mb-6">
                                 <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-1">Zone Type</label>
-                                <select id="type" name="type" value={newZone.type} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500">
-                                    {Object.values(ZoneType).map(type => <option key={type} value={type}>{type}</option>)}
+                                <select 
+                                    id="type" 
+                                    name="type" 
+                                    value={newZone.type} 
+                                    onChange={handleInputChange} 
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                                    required
+                                >
+                                    <option value="">Select zone type...</option>
+                                    {zoneTypes.map(type => (
+                                        <option key={type.id} value={type.name}>
+                                            {type.name}
+                                        </option>
+                                    ))}
                                 </select>
+                                {zoneTypes.length === 0 && (
+                                    <p className="mt-1 text-sm text-gray-500">
+                                        No zone types available. Add zone types in Reference Data first.
+                                    </p>
+                                )}
                             </div>
                             <div className="flex justify-end space-x-4">
                                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Cancel</button>

@@ -1,0 +1,106 @@
+/* Theme CSS Variables - Applied dynamically by ThemeContext */
+:root {
+  --primary-color: #3b82f6;
+  --secondary-color: #2563eb;
+  --accent-color: #60a5fa;
+  --background-color: #f8fafc;
+  --text-primary: #1f2937;
+  --text-secondary: #6b7280;
+  --success-color: #10b981;
+  --error-color: #ef4444;
+}
+
+/* Apply theme colors to common UI elements */
+
+/* Background colors */
+body.bg-gray-100,
+.bg-gray-100 {
+  background-color: var(--background-color) !important;
+}
+
+.bg-gray-50 {
+  background-color: var(--background-color) !important;
+  filter: brightness(1.02);
+}
+
+/* Primary colors */
+.bg-blue-600, .bg-blue-500, .bg-blue-700 {
+  background-color: var(--primary-color) !important;
+}
+
+.hover\:bg-blue-700:hover, .hover\:bg-blue-600:hover {
+  background-color: var(--secondary-color) !important;
+}
+
+.text-blue-600, .text-blue-500, .text-blue-700 {
+  color: var(--primary-color) !important;
+}
+
+/* Text colors - primary (headings, important text) */
+.text-gray-900, .text-gray-800, .text-black {
+  color: var(--text-primary) !important;
+}
+
+/* Text colors - secondary (body text, labels) */
+.text-gray-700, .text-gray-600, .text-gray-500 {
+  color: var(--text-secondary) !important;
+}
+
+/* Text colors - muted (hints, timestamps) */
+.text-gray-400, .text-gray-300 {
+  color: var(--text-secondary) !important;
+  opacity: 0.7;
+}
+
+.border-blue-600, .border-blue-500 {
+  border-color: var(--primary-color) !important;
+}
+
+.bg-teal-600, .bg-teal-500 {
+  background-color: var(--accent-color) !important;
+}
+
+.text-teal-600, .text-teal-500 {
+  color: var(--accent-color) !important;
+}
+
+.bg-green-600, .bg-green-500, .bg-green-700 {
+  background-color: var(--success-color) !important;
+}
+
+.hover\:bg-green-700:hover, .hover\:bg-green-600:hover {
+  background-color: var(--success-color) !important;
+  filter: brightness(0.9);
+}
+
+.text-green-600, .text-green-500 {
+  color: var(--success-color) !important;
+}
+
+.bg-red-600, .bg-red-500 {
+  background-color: var(--error-color) !important;
+}
+
+.text-red-600, .text-red-500 {
+  color: var(--error-color) !important;
+}
+
+/* Apply to buttons with primary styling */
+button.bg-blue-600, button.bg-blue-500, button.bg-blue-700,
+.btn-primary {
+  background-color: var(--primary-color) !important;
+}
+
+button.bg-blue-600:hover, button.bg-blue-500:hover,
+.btn-primary:hover {
+  background-color: var(--secondary-color) !important;
+}
+
+button.bg-green-600, button.bg-green-500 {
+  background-color: var(--success-color) !important;
+}
+
+button.bg-green-600:hover, button.bg-green-500:hover {
+  background-color: var(--success-color) !important;
+  filter: brightness(0.9);
+}

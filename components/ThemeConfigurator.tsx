@@ -1,55 +1,32 @@
-import React, { useState } from 'react';
-
-interface ThemeConfig {
-  clientName: string;
-  branding: {
-    logo: string;
-    siteName: string;
-    primaryColor: string;
-    secondaryColor: string;
-    accentColor: string;
-    backgroundColor: string;
-    textPrimary: string;
-    textSecondary: string;
-    successColor: string;
-    errorColor: string;
-  };
-  colorPalette: string[];
-}
-
-const defaultTheme: ThemeConfig = {
-  clientName: 'AppliedOptix',
-  branding: {
-    logo: '/logo.jpg',
-    siteName: 'Staff Portal',
-    primaryColor: '#3b82f6',
-    secondaryColor: '#2563eb',
-    accentColor: '#60a5fa',
-    backgroundColor: '#f8fafc',
-    textPrimary: '#1f2937',
-    textSecondary: '#6b7280',
-    successColor: '#10b981',
-    errorColor: '#ef4444'
-  },
-  colorPalette: [
-    '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-    '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'
-  ]
-};
+import React, { useState, useEffect } from 'react';
+import { useTheme, ThemeConfig, defaultTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
+import { logAudit } from '../services/auditService';
 
 const ThemeConfigurator: React.FC = () => {
-  const [theme, setTheme] = useState<ThemeConfig>(defaultTheme);
+  const { theme: currentTheme, updateTheme, resetTheme } = useTheme();
+  const { currentUser } = useAuth();
+  const [theme, setTheme] = useState<ThemeConfig>(currentTheme);
   const [activeColor, setActiveColor] = useState<keyof ThemeConfig['branding']>('primaryColor');
+  const [isSaving, setIsSaving] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+
+  // Sync with current theme from context
+  useEffect(() => {
+    setTheme(currentTheme);
+  }, [currentTheme]);
 
   const updateColor = (key: keyof ThemeConfig['branding'], value: string) => {
     setTheme({
       ...theme,
       branding: { ...theme.branding, [key]: value }
     });
+    setHasChanges(true);
   };
 
   const updateClientName = (name: string) => {
     setTheme({ ...theme, clientName: name });
+    setHasChanges(true);
   };
 
   const updateSiteName = (name: string) => {
@@ -57,6 +34,67 @@ const ThemeConfigurator: React.FC = () => {
       ...theme,
       branding: { ...theme.branding, siteName: name }
     });
+    setHasChanges(true);
+  };
+
+  const saveTheme = async () => {
+    setIsSaving(true);
+    try {
+      await updateTheme(theme);
+      setHasChanges(false);
+      
+      // Log audit
+      if (currentUser) {
+        await logAudit({
+          userId: currentUser.email,
+          userName: currentUser.name,
+          userEmail: currentUser.email,
+          action: 'update',
+          entityType: 'reference',
+          entityId: 'theme',
+          entityName: 'Application Theme'
+        });
+      }
+      
+      alert('Theme saved successfully!');
+    } catch (error) {
+      console.error('Error saving theme:', error);
+      alert('Failed to save theme. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleResetTheme = async () => {
+    if (!window.confirm('Are you sure you want to reset to the default theme? This cannot be undone.')) {
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      await resetTheme();
+      setHasChanges(false);
+      
+      // Log audit
+      if (currentUser) {
+        await logAudit({
+          userId: currentUser.email,
+          userName: currentUser.name,
+          userEmail: currentUser.email,
+          action: 'delete',
+          entityType: 'reference',
+          entityId: 'theme',
+          entityName: 'Application Theme (Reset to Default)'
+        });
+      }
+      
+      alert('Theme reset to default!');
+    } catch (error) {
+      console.error('Error resetting theme:', error);
+      alert('Failed to reset theme. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const exportTheme = () => {
@@ -91,6 +129,7 @@ const ThemeConfigurator: React.FC = () => {
     } else {
       setTheme(defaultTheme);
     }
+    setHasChanges(true);
   };
 
   return (
@@ -187,6 +226,36 @@ const ThemeConfigurator: React.FC = () => {
               </div>
             </div>
 
+            {/* Save Theme */}
+            <div className="bg-white p-6 rounded-xl shadow-md">
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">Apply Theme</h2>
+              <div className="space-y-3">
+                <button
+                  onClick={saveTheme}
+                  disabled={!hasChanges || isSaving}
+                  className={`w-full px-6 py-3 rounded-lg font-semibold transition-colors ${
+                    hasChanges && !isSaving
+                      ? 'bg-green-600 text-white hover:bg-green-700'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  {isSaving ? '💾 Saving...' : hasChanges ? '💾 Save & Apply Theme' : '✓ Theme Saved'}
+                </button>
+                <button
+                  onClick={handleResetTheme}
+                  disabled={isSaving}
+                  className="w-full px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed"
+                >
+                  🔄 Reset to Default
+                </button>
+              </div>
+              {hasChanges && (
+                <p className="mt-3 text-sm text-amber-600 font-medium">
+                  ⚠️ You have unsaved changes
+                </p>
+              )}
+            </div>
+
             {/* Export */}
             <div className="bg-white p-6 rounded-xl shadow-md">
               <h2 className="text-xl font-semibold text-gray-800 mb-4">Export Theme</h2>
@@ -194,7 +263,7 @@ const ThemeConfigurator: React.FC = () => {
                 onClick={exportTheme}
                 className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
               >
-                💾 Download {theme.clientName}.json
+                � Download {theme.clientName}.json
               </button>
               <p className="mt-3 text-sm text-gray-600">
                 Use with: <code className="bg-gray-100 px-2 py-1 rounded">node scripts/clone-site.js {theme.clientName.toLowerCase()}</code>
