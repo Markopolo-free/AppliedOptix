@@ -69,11 +69,25 @@ const ZoneManager: React.FC = () => {
             const snapshot = await get(zonesRef);
             if (snapshot.exists()) {
                 const data = snapshot.val();
-                const zonesList: Zone[] = Object.keys(data).map(key => ({
-                    id: key,
-                    ...data[key],
-                    lastModifiedAt: new Date(data[key].lastModifiedAt).toISOString(),
-                }));
+                // Safely coerce timestamps coming from RTDB to a valid ISO string
+                const toISOOrFallback = (value: any): string => {
+                    if (value !== undefined && value !== null) {
+                        const d = new Date(value);
+                        if (!isNaN(d.getTime())) return d.toISOString();
+                    }
+                    // Try common alternate fields if present
+                    return new Date(0).toISOString(); // fallback to epoch to avoid crashes
+                };
+
+                const zonesList: Zone[] = Object.keys(data).map(key => {
+                    const raw = data[key];
+                    const lastModifiedISO = toISOOrFallback(raw.lastModifiedAt ?? raw.updatedAt ?? raw.createdAt);
+                    return {
+                        id: key,
+                        ...raw,
+                        lastModifiedAt: lastModifiedISO,
+                    } as Zone;
+                });
                 zonesList.sort((a, b) => new Date(b.lastModifiedAt).getTime() - new Date(a.lastModifiedAt).getTime());
                 setZones(zonesList);
             } else {
