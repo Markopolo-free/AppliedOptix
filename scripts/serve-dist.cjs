@@ -32,8 +32,26 @@ const server = http.createServer((req, res) => {
 
     fs.stat(filePath, (err, stats) => {
       if (err || !stats.isFile()) {
-        res.writeHead(404);
-        res.end('Not found');
+        // SPA fallback: if request looks like a client-side route (no extension)
+        // or the client accepts HTML, serve index.html
+        const ext = path.extname(urlPath).toLowerCase();
+        const accepts = (req.headers['accept'] || '').toString();
+        const wantsHtml = accepts.includes('text/html');
+        if (!ext || wantsHtml) {
+          const indexPath = path.join(root, 'index.html');
+          fs.readFile(indexPath, (readErr, data) => {
+            if (readErr) {
+              res.writeHead(500);
+              res.end('Server error');
+              return;
+            }
+            res.writeHead(200, { 'Content-Type': 'text/html' });
+            res.end(data);
+          });
+        } else {
+          res.writeHead(404);
+          res.end('Not found');
+        }
         return;
       }
       const ext = path.extname(filePath).toLowerCase();
