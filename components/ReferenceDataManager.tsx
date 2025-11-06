@@ -189,6 +189,18 @@ const ReferenceDataManager: React.FC = () => {
         setEditingItem(null);
       } else {
         // Add new item
+        
+        // For currencies, check if code already exists
+        if (activeCategory === 'currencies' && itemData.code) {
+          const existingCurrency = items.find(
+            (item: any) => item.code && item.code.toUpperCase() === itemData.code.toUpperCase()
+          );
+          if (existingCurrency) {
+            alert(`Currency code "${itemData.code}" already exists. Please use a different code.`);
+            return;
+          }
+        }
+        
         const itemsRef = ref(database, currentConfig.dbPath);
         const newItemRef = await push(itemsRef, itemData);
 
@@ -222,6 +234,7 @@ const ReferenceDataManager: React.FC = () => {
     const lines = bulkImportText.trim().split('\n').filter(line => line.trim());
     let successCount = 0;
     let errorCount = 0;
+    const importedCodes = new Set<string>(); // Track codes added in this batch
 
     try {
       const itemsRef = ref(database, currentConfig.dbPath);
@@ -240,6 +253,17 @@ const ReferenceDataManager: React.FC = () => {
           } else if (activeCategory === 'currencies') {
             itemData.code = parts[0].toUpperCase();
             itemData.name = parts[1] || parts[0];
+            
+            // Check if code already exists in database or in current batch
+            const existingCurrency = items.find(
+              (item: any) => item.code && item.code.toUpperCase() === itemData.code
+            );
+            if (existingCurrency || importedCodes.has(itemData.code)) {
+              console.warn(`Skipping duplicate currency code: ${itemData.code}`);
+              errorCount++;
+              continue;
+            }
+            importedCodes.add(itemData.code);
           } else if (activeCategory === 'fxSegments') {
             itemData.name = parts[0];
           } else if (activeCategory === 'serviceTypes') {
