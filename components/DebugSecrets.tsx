@@ -38,17 +38,14 @@ const DebugSecrets: React.FC = () => {
 
   // Drag state
   const [dragging, setDragging] = useState(false);
-  const [pos, setPos] = useState<{x: number, y: number}>({ x: 0, y: 0 });
+  const [offset, setOffset] = useState<{x: number, y: number}>({ x: 0, y: 0 });
+  const [isDragged, setIsDragged] = useState(false);
   const dragRef = React.useRef<HTMLDivElement>(null);
 
   // Touch/mouse drag handlers
   const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
-    setDragging(true);
-    e.stopPropagation();
-  };
-  const handleDragEnd = () => setDragging(false);
-  const handleDragMove = (e: MouseEvent | TouchEvent) => {
-    if (!dragging) return;
+    if (!dragRef.current) return;
+    const rect = dragRef.current.getBoundingClientRect();
     let clientX = 0, clientY = 0;
     if ('touches' in e && e.touches.length) {
       clientX = e.touches[0].clientX;
@@ -57,8 +54,44 @@ const DebugSecrets: React.FC = () => {
       clientX = e.clientX;
       clientY = e.clientY;
     }
-    setPos({ x: clientX, y: clientY });
+    // Store offset from top-left corner
+    setOffset({ x: clientX - rect.left, y: clientY - rect.top });
+    setDragging(true);
+    e.stopPropagation();
   };
+
+  const handleDragEnd = () => setDragging(false);
+
+  const handleDragMove = (e: MouseEvent | TouchEvent) => {
+    if (!dragging || !dragRef.current) return;
+    let clientX = 0, clientY = 0;
+    if ('touches' in e && e.touches.length) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else if ('clientX' in e) {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    
+    // Calculate new position with offset
+    const newX = clientX - offset.x;
+    const newY = clientY - offset.y;
+    
+    // Constrain to viewport
+    const rect = dragRef.current.getBoundingClientRect();
+    const maxX = window.innerWidth - rect.width;
+    const maxY = window.innerHeight - rect.height;
+    
+    const constrainedX = Math.max(0, Math.min(newX, maxX));
+    const constrainedY = Math.max(0, Math.min(newY, maxY));
+    
+    dragRef.current.style.left = `${constrainedX}px`;
+    dragRef.current.style.top = `${constrainedY}px`;
+    dragRef.current.style.bottom = 'auto';
+    dragRef.current.style.right = 'auto';
+    setIsDragged(true);
+  };
+
   useEffect(() => {
     if (!dragging) return;
     const move = (e: any) => handleDragMove(e);
@@ -73,12 +106,12 @@ const DebugSecrets: React.FC = () => {
       window.removeEventListener('mouseup', up);
       window.removeEventListener('touchend', up);
     };
-  }, [dragging]);
+  }, [dragging, offset]);
 
-  // Initial position: bottom right, but allow drag
-  const style = dragging || pos.x || pos.y
-    ? { position: 'fixed', left: pos.x ? pos.x : undefined, top: pos.y ? pos.y : undefined, zIndex: 50, maxWidth: '32rem', maxHeight: '80vh', overflowY: 'auto' }
-    : { position: 'fixed', bottom: '1rem', right: '1rem', zIndex: 50, maxWidth: '32rem', maxHeight: '80vh', overflowY: 'auto' };
+  // Initial position: bottom right, unless dragged
+  const style: React.CSSProperties = isDragged
+    ? { position: 'fixed' as const, zIndex: 50, maxWidth: '32rem', maxHeight: '80vh', overflowY: 'auto' as const }
+    : { position: 'fixed' as const, bottom: '1rem', right: '1rem', zIndex: 50, maxWidth: '32rem', maxHeight: '80vh', overflowY: 'auto' as const };
 
   return (
     <div ref={dragRef} style={style} className="bg-white border-2 border-red-500 p-4 rounded-lg shadow-lg">
