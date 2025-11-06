@@ -2,34 +2,22 @@
 // Service to load test credentials from JSON file for development/testing
 // Returns empty credentials in production if the file is not available
 
+// Conditional import - only available in dev (file is in .gitignore)
+// @ts-ignore
+const testCredentialsModules = import.meta.glob('../test-credentials.json', { eager: true, import: 'default' });
+const testCredentialsData = testCredentialsModules['../test-credentials.json'] as { credentials: Credential[] } | undefined;
+
 export interface Credential {
   username: string;
   password: string;
 }
 
-// Safe getter for test credentials - returns empty array if file not found
-function loadTestCredentials(): Credential[] {
-  // In production/Vercel, test-credentials.json won't exist (it's in .gitignore)
-  // Return empty credentials to prevent build errors
-  if (import.meta.env.PROD) {
-    return [];
-  }
-  
-  // Development: try to load the file
-  try {
-    // This will only work locally where test-credentials.json exists
-    // @ts-ignore - Optional import for development only
-    const data = require('../test-credentials.json');
-    return data?.credentials || [];
-  } catch {
-    return [];
-  }
-}
-
-const cachedCredentials = loadTestCredentials();
-
 export function getTestCredentials(): Credential[] {
-  return cachedCredentials;
+  if (!testCredentialsData) {
+    console.log('Test credentials not loaded (file not found - expected in production)');
+    return [];
+  }
+  return testCredentialsData.credentials || [];
 }
 
 export function validateCredentials(username: string, password: string): boolean {
