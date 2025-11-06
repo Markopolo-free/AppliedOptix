@@ -28,7 +28,9 @@ const initialNewRuleState = {
 const PricingManager: React.FC = () => {
     const { currentUser } = useAuth();
     const [rules, setRules] = useState<PricingRule[]>([]);
-    const [zones, setZones] = useState<Zone[]>([]); // For dropdown
+    const [zones, setZones] = useState<Zone[]>([]); // For dropdowns and display
+    const [selectedLocation, setSelectedLocation] = useState<string>('');
+    const [selectedZoneType, setSelectedZoneType] = useState<string>('');
     const [services, setServices] = useState<Service[]>([]); // For multi-select/info (legacy)
     const [serviceTypeOptions, setServiceTypeOptions] = useState<ServiceTypeOption[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -151,6 +153,8 @@ const PricingManager: React.FC = () => {
     const handleOpenModalForAdd = () => {
         setEditingRule(null);
         setFormData(initialNewRuleState);
+        setSelectedLocation('');
+        setSelectedZoneType('');
         setIsModalOpen(true);
     };
 
@@ -167,6 +171,17 @@ const PricingManager: React.FC = () => {
             zoneId: rule.zoneId || '',
             zoneDiscount: rule.zoneDiscount ? String(rule.zoneDiscount) : '',
         });
+        // Pre-fill location and type if zone is selected
+        if (rule.zoneId) {
+            const z = zones.find(zz => zz.id === rule.zoneId);
+            if (z) {
+                setSelectedLocation(z.location);
+                setSelectedZoneType(z.type);
+            }
+        } else {
+            setSelectedLocation('');
+            setSelectedZoneType('');
+        }
         setIsModalOpen(true);
     };
 
@@ -428,7 +443,22 @@ const PricingManager: React.FC = () => {
     };
     
     const getServiceName = (serviceId: string) => services.find(s => s.id === serviceId)?.name || serviceId;
-    const getZoneName = (zoneId: string) => zones.find(z => z.id === zoneId)?.name || zoneId;
+    const getZoneName = (zoneId: string) => {
+        const z = zones.find(zz => zz.id === zoneId);
+        if (!z) return zoneId;
+        // Display Location and Type from Pricing Zone Management
+        return `${z.location} • ${z.type}`;
+    };
+
+    const getUniqueLocations = (): string[] => {
+        const locs = Array.from(new Set(zones.map(z => z.location))) as string[];
+        return locs.sort((a, b) => a.localeCompare(b));
+    };
+    const getTypesForLocation = (loc: string): string[] => {
+        const types = zones.filter(z => !loc || z.location === loc).map(z => z.type);
+        const uniqueTypes = Array.from(new Set(types)) as string[];
+        return uniqueTypes.sort((a, b) => a.localeCompare(b));
+    };
     
     const formatServiceTypeEntries = (entries: ServiceTypeEntry[]) => {
         if (!entries || entries.length === 0) return '';
@@ -441,6 +471,19 @@ const PricingManager: React.FC = () => {
             return label;
         }).join(', ');
     };
+
+    // Auto-update zoneId when location + type change
+    useEffect(() => {
+        if (!selectedLocation || !selectedZoneType) {
+            // Only update if form zoneId isn't already empty
+            if (formData.zoneId) {
+                setFormData(prev => ({ ...prev, zoneId: '' }));
+            }
+            return;
+        }
+        const match = zones.find(z => z.location === selectedLocation && z.type === selectedZoneType);
+        setFormData(prev => ({ ...prev, zoneId: match ? match.id : '' }));
+    }, [selectedLocation, selectedZoneType, zones]);
 
     return (
         <div>
@@ -631,11 +674,38 @@ const PricingManager: React.FC = () => {
                                     </select>
                                 </div>
                                  <div>
-                                    <label htmlFor="zoneId" className="block text-sm font-medium text-gray-700">Pricing Zone (Optional)</label>
-                                    <select id="zoneId" name="zoneId" value={formData.zoneId} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+                                    <label htmlFor="zoneLocation" className="block text-sm font-medium text-gray-700">Location (City)</label>
+                                    <select
+                                        id="zoneLocation"
+                                        name="zoneLocation"
+                                        value={selectedLocation}
+                                        onChange={(e) => setSelectedLocation(e.target.value)}
+                                        className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                                    >
                                         <option value="">None</option>
-                                        {zones.map(zone => <option key={zone.id} value={zone.id}>{zone.name} - {zone.location}</option>)}
+                                        {getUniqueLocations().map(loc => (
+                                            <option key={loc} value={loc}>{loc}</option>
+                                        ))}
                                     </select>
+                                </div>
+                                <div>
+                                    <label htmlFor="zoneType" className="block text-sm font-medium text-gray-700">Zone Type</label>
+                                    <select
+                                        id="zoneType"
+                                        name="zoneType"
+                                        value={selectedZoneType}
+                                        onChange={(e) => setSelectedZoneType(e.target.value)}
+                                        className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                                        disabled={!selectedLocation}
+                                    >
+                                        <option value="">{selectedLocation ? 'Select type…' : 'Select a location first'}</option>
+                                        {getTypesForLocation(selectedLocation).map(t => (
+                                            <option key={t} value={t}>{t}</option>
+                                        ))}
+                                    </select>
+                                    {selectedLocation && selectedZoneType && !zones.some(z => z.location === selectedLocation && z.type === selectedZoneType) && (
+                                        <p className="mt-1 text-sm text-red-600">No zone found for this Location + Type selection.</p>
+                                    )}
                                 </div>
                                 <div>
                                     <label htmlFor="zoneDiscount" className="block text-sm font-medium text-gray-700">Zone Discount (%)</label>
