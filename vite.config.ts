@@ -44,7 +44,7 @@ export default defineConfig(async ({ mode }) => {
         dedupe: ['react', 'react-dom', 'use-sync-external-store']
       },
       build: {
-        sourcemap: true,
+        sourcemap: mode === 'development',
         // Split vendor and react-related code into separate chunks to reduce the main bundle size
         rollupOptions: {
           plugins: [
