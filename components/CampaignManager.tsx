@@ -599,7 +599,7 @@ const CampaignManager: React.FC = () => {
                         </div>
                         <div>
                             <label htmlFor="startDate" className="block text-sm font-medium text-gray-700">Start Date</label>
-                            <input type="date" name="startDate" id="startDate" value={newCampaign.startDate} onChange={handleInputChange} min={getTodayString()} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required />
+                            <input type="date" name="startDate" id="startDate" value={newCampaign.startDate} onChange={handleInputChange} min={editingCampaign ? undefined : getTodayString()} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required />
                         </div>
                          <div>
                             <label htmlFor="endDate" className="block text-sm font-medium text-gray-700">End Date</label>
