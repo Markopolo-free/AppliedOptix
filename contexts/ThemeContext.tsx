@@ -15,6 +15,7 @@ interface ThemeConfig {
     textSecondary: string;
     successColor: string;
     errorColor: string;
+    fontFamily?: string;
   };
   colorPalette: string[];
 }
@@ -31,7 +32,8 @@ const defaultTheme: ThemeConfig = {
     textPrimary: '#1f2937',
     textSecondary: '#6b7280',
     successColor: '#10b981',
-    errorColor: '#ef4444'
+    errorColor: '#ef4444',
+    fontFamily: 'system-ui, -apple-system, sans-serif'
   },
   colorPalette: [
     '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
@@ -76,6 +78,14 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     root.style.setProperty('--text-secondary', themeConfig.branding.textSecondary);
     root.style.setProperty('--success-color', themeConfig.branding.successColor);
     root.style.setProperty('--error-color', themeConfig.branding.errorColor);
+    
+    // Apply font family with !important to override Tailwind
+    if (themeConfig.branding.fontFamily) {
+      // Set a CSS variable so all elements (including those with Tailwind font utilities) can consume it
+      root.style.setProperty('--app-font-family', themeConfig.branding.fontFamily);
+      document.body.style.setProperty('font-family', themeConfig.branding.fontFamily, 'important');
+      console.log('Applied font from theme:', themeConfig.branding.fontFamily);
+    }
     
     // Update document title
     document.title = themeConfig.branding.siteName;

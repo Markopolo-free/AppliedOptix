@@ -5,6 +5,10 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>eMobility Staff Portal</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&family=Open+Sans:wght@300;400;600;700&family=Lato:wght@300;400;700&family=Montserrat:wght@300;400;600;700&family=Poppins:wght@300;400;600;700&family=Source+Sans+Pro:wght@300;400;600;700&family=Caveat:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -40,6 +44,7 @@
         --text-secondary: #6b7280;
         --success-color: #10b981;
         --error-color: #ef4444;
+        --app-font-family: system-ui, -apple-system, sans-serif; /* default, overridden by ThemeContext */
       }
 
       /* Apply theme colors to common UI elements */
@@ -106,6 +111,12 @@
       button.bg-green-600:hover, button.bg-green-500:hover {
         background-color: var(--success-color) !important;
         filter: brightness(0.9);
+      }
+    </style>
+    <style>
+      /* Global font application using CSS variable (overrides Tailwind font utilities) */
+      body, html, #root, *:not(code):not(.font-mono) {
+        font-family: var(--app-font-family) !important;
       }
     </style>
   <!-- Import map removed for production builds to avoid mixing CDN React with bundled React.

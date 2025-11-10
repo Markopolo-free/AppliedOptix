@@ -182,6 +182,44 @@ const ThemeConfigurator: React.FC = () => {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Font Family
+                    <span className="ml-2 text-xs text-blue-600">(Changes apply immediately)</span>
+                  </label>
+                  <select
+                    value={theme.branding.fontFamily || 'system-ui, -apple-system, sans-serif'}
+                    onChange={(e) => {
+                      const newFont = e.target.value;
+                      console.log('🎨 Changing font from:', theme.branding.fontFamily, 'to:', newFont);
+                      setTheme({
+                        ...theme,
+                        branding: { ...theme.branding, fontFamily: newFont }
+                      });
+                      setHasChanges(true);
+                      // Apply font immediately for preview with !important
+                      document.documentElement.style.setProperty('--app-font-family', newFont);
+                      document.body.style.setProperty('font-family', newFont, 'important');
+                      console.log('✅ Font applied to body. Current body font:', window.getComputedStyle(document.body).fontFamily);
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    style={{ fontFamily: theme.branding.fontFamily || 'system-ui, -apple-system, sans-serif' }}
+                  >
+                    <option value="system-ui, -apple-system, sans-serif" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>System Default</option>
+                    <option value="'Inter', sans-serif" style={{ fontFamily: "'Inter', sans-serif" }}>Inter (Modern)</option>
+                    <option value="'Roboto', sans-serif" style={{ fontFamily: "'Roboto', sans-serif" }}>Roboto (Google)</option>
+                    <option value="'Open Sans', sans-serif" style={{ fontFamily: "'Open Sans', sans-serif" }}>Open Sans</option>
+                    <option value="'Lato', sans-serif" style={{ fontFamily: "'Lato', sans-serif" }}>Lato</option>
+                    <option value="'Montserrat', sans-serif" style={{ fontFamily: "'Montserrat', sans-serif" }}>Montserrat</option>
+                    <option value="'Poppins', sans-serif" style={{ fontFamily: "'Poppins', sans-serif" }}>Poppins</option>
+                    <option value="'Source Sans Pro', sans-serif" style={{ fontFamily: "'Source Sans Pro', sans-serif" }}>Source Sans Pro</option>
+                    <option value="'Caveat', cursive" style={{ fontFamily: "'Caveat', cursive" }}>Caveat (Handwriting)</option>
+                    <option value="Georgia, serif" style={{ fontFamily: 'Georgia, serif' }}>Georgia (Serif)</option>
+                    <option value="'Times New Roman', serif" style={{ fontFamily: "'Times New Roman', serif" }}>Times New Roman</option>
+                    <option value="'Courier New', monospace" style={{ fontFamily: "'Courier New', monospace" }}>Courier New (Mono)</option>
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">Note: Some fonts may require Google Fonts to be loaded</p>
+                </div>
               </div>
             </div>
 
