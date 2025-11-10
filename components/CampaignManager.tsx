@@ -770,7 +770,7 @@ const CampaignManager: React.FC = () => {
                                               )
                                             }));
                                           }}
-                                          min={getTodayString()}
+                                          min={editingCampaign ? undefined : getTodayString()}
                                           className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                                         />
                                       </div>
@@ -787,7 +787,7 @@ const CampaignManager: React.FC = () => {
                                               )
                                             }));
                                           }}
-                                          min={criteria.qualifyStartDate || getTodayString()}
+                                          min={editingCampaign ? undefined : (criteria.qualifyStartDate || getTodayString())}
                                           className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                                         />
                                       </div>
