@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { ref, get, push, set, serverTimestamp, update, remove } from 'firebase/database';
 import { db } from '../services/firebase';
-import { Campaign, DiscountType, Service, ServiceStatus } from '../types';
+import { Campaign, DiscountType, Service, ServiceStatus, ServiceQualifyingCriteria } from '../types';
 import { generateCampaignIdea } from '../services/geminiService';
 import { SparklesIcon } from './icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,12 +10,18 @@ import { logAudit, calculateChanges } from '../services/auditService';
 // Mock Data for AI idea generation (can be replaced with live data later)
 // Fix: Updated `type` to be a string literal to align with the removal of the ServiceType enum.
 const mockServices: Service[] = [
-  { id: 'svc_1', name: 'Berlin City eCars', type: 'Electric Car', location: 'Berlin', description: 'Convenient electric car sharing.', price: 15, currency: 'EUR', status: ServiceStatus.Available, effectiveDate: new Date().toISOString(), lastModifiedBy: 'system', lastModifiedAt: new Date().toISOString() },
-  { id: 'svc_2', name: 'Munich eScooters', type: 'eScooter', location: 'Munich', description: 'Fun and fast e-scooters.', price: 0.25, currency: 'EUR', status: ServiceStatus.Available, effectiveDate: new Date().toISOString(), lastModifiedBy: 'system', lastModifiedAt: new Date().toISOString() },
-  { id: 'svc_3', name: 'Hamburg eBikes', type: 'eBike', location: 'Hamburg', description: 'Explore the city on two wheels.', price: 10, currency: 'EUR', status: ServiceStatus.Available, effectiveDate: new Date().toISOString(), lastModifiedBy: 'system', lastModifiedAt: new Date().toISOString() },
-  { id: 'svc_4', name: 'Berlin Buses', type: 'Bus', location: 'Berlin', description: 'Public transport buses.', price: 3, currency: 'EUR', status: ServiceStatus.Available, effectiveDate: new Date().toISOString(), lastModifiedBy: 'system', lastModifiedAt: new Date().toISOString() },
-  { id: 'svc_5', name: 'Munich S-Bahn', type: 'Train', location: 'Munich', description: 'Suburban train network.', price: 3.3, currency: 'EUR', status: ServiceStatus.Available, effectiveDate: new Date().toISOString(), lastModifiedBy: 'system', lastModifiedAt: new Date().toISOString() },
+  { id: 'svc_1', name: 'Berlin City eCars', type: 'Electric Car', country: 'Germany', location: 'Berlin', description: 'Convenient electric car sharing.', price: 15, currency: 'EUR', status: ServiceStatus.Available, effectiveDate: new Date().toISOString(), lastModifiedBy: 'system', lastModifiedAt: new Date().toISOString() },
+  { id: 'svc_2', name: 'Munich eScooters', type: 'eScooter', country: 'Germany', location: 'Munich', description: 'Fun and fast e-scooters.', price: 0.25, currency: 'EUR', status: ServiceStatus.Available, effectiveDate: new Date().toISOString(), lastModifiedBy: 'system', lastModifiedAt: new Date().toISOString() },
+  { id: 'svc_3', name: 'Hamburg eBikes', type: 'eBike', country: 'Germany', location: 'Hamburg', description: 'Explore the city on two wheels.', price: 10, currency: 'EUR', status: ServiceStatus.Available, effectiveDate: new Date().toISOString(), lastModifiedBy: 'system', lastModifiedAt: new Date().toISOString() },
+  { id: 'svc_4', name: 'Berlin Buses', type: 'Bus', country: 'Germany', location: 'Berlin', description: 'Public transport buses.', price: 3, currency: 'EUR', status: ServiceStatus.Available, effectiveDate: new Date().toISOString(), lastModifiedBy: 'system', lastModifiedAt: new Date().toISOString() },
+  { id: 'svc_5', name: 'Munich S-Bahn', type: 'Train', country: 'Germany', location: 'Munich', description: 'Suburban train network.', price: 3.3, currency: 'EUR', status: ServiceStatus.Available, effectiveDate: new Date().toISOString(), lastModifiedBy: 'system', lastModifiedAt: new Date().toISOString() },
 ];
+
+// Helper to get today's date in YYYY-MM-DD format
+const getTodayString = () => {
+  const today = new Date();
+  return today.toISOString().split('T')[0];
+};
 
 const initialNewCampaignState = {
   name: '',
@@ -23,17 +29,13 @@ const initialNewCampaignState = {
   serviceIds: [] as string[],
   discountType: DiscountType.Percentage,
     discountValue: '',
-    startDate: '',
+    startDate: getTodayString(),
     endDate: '',
+  countryId: '',
   cityId: '',
-  // Qualifying Criteria (form state as strings)
+  // Qualifying Criteria (form state)
   hasQualifyingCriteria: 'N' as 'Y' | 'N',
-  qualifyingServiceId: '',
-  criteriaType: 'distance' as 'distance' | 'rides',
-  minDistanceKm: '',
-  minRides: '',
-  qualifyStartDate: '',
-  qualifyEndDate: '',
+  qualifyingCriteria: [] as ServiceQualifyingCriteria[],
   rewardAvailableFrom: '',
 };
 
@@ -46,7 +48,9 @@ const CampaignManager: React.FC = () => {
   const [newCampaign, setNewCampaign] = useState(initialNewCampaignState);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [services, setServices] = useState<Service[]>([]);
-  const [cities, setCities] = useState<{ id: string; name: string }[]>([]);
+  const [countries, setCountries] = useState<string[]>([]);
+  const [cities, setCities] = useState<{ id: string; name: string; country: string }[]>([]);
+  const [filteredCities, setFilteredCities] = useState<{ id: string; name: string }[]>([]);
 
 
   const fetchCampaigns = useCallback(async () => {
@@ -110,6 +114,26 @@ const CampaignManager: React.FC = () => {
     loadServices();
   }, []);
 
+  // Load countries from reference data
+  useEffect(() => {
+    const loadCountries = async () => {
+      try {
+        const countriesRef = ref(db, 'referenceCountries');
+        const snap = await get(countriesRef);
+        if (snap.exists()) {
+          const data = snap.val();
+          const list = Object.values(data).map((country: any) => country.name);
+          setCountries(list.sort((a: string, b: string) => a.localeCompare(b)));
+        } else {
+          setCountries([]);
+        }
+      } catch (err) {
+        console.error('Error loading countries:', err);
+      }
+    };
+    loadCountries();
+  }, []);
+
   // Load cities from reference data
   useEffect(() => {
     const loadCities = async () => {
@@ -118,7 +142,11 @@ const CampaignManager: React.FC = () => {
         const snap = await get(citiesRef);
         if (snap.exists()) {
           const data = snap.val();
-          const list = Object.keys(data).map((key) => ({ id: key, name: data[key].name }));
+          const list = Object.keys(data).map((key) => ({ 
+            id: key, 
+            name: data[key].name,
+            country: data[key].country || ''
+          }));
           setCities(list.sort((a, b) => a.name.localeCompare(b.name)));
         } else {
           setCities([]);
@@ -130,10 +158,29 @@ const CampaignManager: React.FC = () => {
     loadCities();
   }, []);
 
+  // Filter cities by selected country
+  useEffect(() => {
+    if (!newCampaign.countryId) {
+      setFilteredCities([]);
+      return;
+    }
+    const filtered = cities
+      .filter(city => {
+        // Match by exact country
+        if (city.country === newCampaign.countryId) return true;
+        // Legacy support: Include cities with empty country if selecting Germany
+        if (!city.country && newCampaign.countryId === 'Germany') return true;
+        return false;
+      })
+      .map(city => ({ id: city.id, name: city.name }));
+    setFilteredCities(filtered);
+  }, [newCampaign.countryId, cities]);
+
 
   const handleOpenModalForAdd = () => {
       setEditingCampaign(null);
       setNewCampaign(initialNewCampaignState);
+      setFilteredCities([]);
       setIsModalOpen(true);
   };
   
@@ -147,16 +194,35 @@ const CampaignManager: React.FC = () => {
         discountValue: String(campaign.discountValue),
         startDate: campaign.startDate,
         endDate: campaign.endDate,
+    countryId: campaign.countryId || '',
     cityId: campaign.cityId || '',
     hasQualifyingCriteria: campaign.hasQualifyingCriteria || 'N',
-    qualifyingServiceId: campaign.qualifyingServiceId || '',
-    criteriaType: (campaign.criteriaType as 'distance' | 'rides') || 'distance',
-    minDistanceKm: campaign.minDistanceKm != null ? String(campaign.minDistanceKm) : '',
-    minRides: campaign.minRides != null ? String(campaign.minRides) : '',
-    qualifyStartDate: campaign.qualifyStartDate || '',
-    qualifyEndDate: campaign.qualifyEndDate || '',
+    // Load per-service criteria or convert legacy format
+    qualifyingCriteria: campaign.qualifyingCriteria || (() => {
+      // Convert legacy format to new format
+      const legacyIds = campaign.qualifyingServiceIds || (campaign.qualifyingServiceId ? [campaign.qualifyingServiceId] : []);
+      return legacyIds.map(serviceId => ({
+        serviceId,
+        criteriaType: (campaign.criteriaType || 'distance') as 'distance' | 'rides',
+        minDistanceKm: campaign.minDistanceKm,
+        minRides: campaign.minRides,
+        qualifyStartDate: campaign.qualifyStartDate || '',
+        qualifyEndDate: campaign.qualifyEndDate || '',
+      }));
+    })(),
     rewardAvailableFrom: campaign.rewardAvailableFrom || '',
     });
+    // Pre-filter cities for the campaign's country
+    if (campaign.countryId) {
+      const filtered = cities
+        .filter(city => {
+          if (city.country === campaign.countryId) return true;
+          if (!city.country && campaign.countryId === 'Germany') return true;
+          return false;
+        })
+        .map(city => ({ id: city.id, name: city.name }));
+      setFilteredCities(filtered);
+    }
     setIsModalOpen(true);
   };
 
@@ -172,16 +238,6 @@ const CampaignManager: React.FC = () => {
 
   const handleSaveCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Determine criteria type automatically from selected service type (if available)
-    let derivedCriteriaType: 'distance' | 'rides' = newCampaign.criteriaType;
-    if (newCampaign.qualifyingServiceId) {
-      const svc = services.find(s => s.id === newCampaign.qualifyingServiceId);
-      if (svc) {
-        if (svc.type.toLowerCase().includes('train')) derivedCriteriaType = 'rides';
-        if (svc.type.toLowerCase().includes('scooter')) derivedCriteriaType = 'distance';
-      }
-    }
 
     const hasQC = newCampaign.hasQualifyingCriteria === 'Y';
     const campaignData = {
@@ -192,14 +248,10 @@ const CampaignManager: React.FC = () => {
       discountValue: parseFloat(newCampaign.discountValue) || 0,
       startDate: newCampaign.startDate,
       endDate: newCampaign.endDate,
+      countryId: newCampaign.countryId || undefined,
       cityId: newCampaign.cityId || undefined,
       hasQualifyingCriteria: hasQC ? 'Y' : 'N',
-      qualifyingServiceId: hasQC ? (newCampaign.qualifyingServiceId || '') : '',
-      criteriaType: hasQC ? derivedCriteriaType : undefined,
-      minDistanceKm: hasQC && derivedCriteriaType === 'distance' ? (parseFloat(newCampaign.minDistanceKm) || 0) : undefined,
-      minRides: hasQC && derivedCriteriaType === 'rides' ? (parseInt(newCampaign.minRides) || 0) : undefined,
-      qualifyStartDate: hasQC ? (newCampaign.qualifyStartDate || '') : undefined,
-      qualifyEndDate: hasQC ? (newCampaign.qualifyEndDate || '') : undefined,
+      qualifyingCriteria: hasQC ? newCampaign.qualifyingCriteria : undefined,
       rewardAvailableFrom: hasQC ? (newCampaign.rewardAvailableFrom || '') : undefined,
       lastModifiedBy: currentUser?.email || 'system',
       lastModifiedAt: serverTimestamp(),
@@ -207,33 +259,46 @@ const CampaignManager: React.FC = () => {
 
     // Clean undefined for Firebase update; and null-out QC fields when QC is off to clear old values
     const payload: any = Object.fromEntries(Object.entries(campaignData).filter(([_, v]) => v !== undefined));
+    
+    // Clean undefined values from qualifyingCriteria array
+    if (hasQC && payload.qualifyingCriteria) {
+      payload.qualifyingCriteria = payload.qualifyingCriteria.map((criteria: ServiceQualifyingCriteria) => {
+        const cleaned: any = { ...criteria };
+        // Remove undefined properties based on criteria type
+        if (criteria.criteriaType === 'distance') {
+          delete cleaned.minRides;
+        } else if (criteria.criteriaType === 'rides') {
+          delete cleaned.minDistanceKm;
+        }
+        return cleaned;
+      });
+    }
+    
     if (!hasQC) {
-      payload.qualifyingServiceId = null;
-      payload.criteriaType = null;
-      payload.minDistanceKm = null;
-      payload.minRides = null;
-      payload.qualifyStartDate = null;
-      payload.qualifyEndDate = null;
+      payload.qualifyingCriteria = null;
       payload.rewardAvailableFrom = null;
     }
 
     // Basic validation when QC is enabled
     if (hasQC) {
-      if (!campaignData.qualifyingServiceId) {
-        alert('Please select a qualifying service.');
+      if (!campaignData.qualifyingCriteria || campaignData.qualifyingCriteria.length === 0) {
+        alert('Please add at least one qualifying service with criteria.');
         return;
       }
-      if (derivedCriteriaType === 'distance' && (!newCampaign.minDistanceKm || parseFloat(newCampaign.minDistanceKm) <= 0)) {
-        alert('Please enter a valid minimum distance in km.');
-        return;
-      }
-      if (derivedCriteriaType === 'rides' && (!newCampaign.minRides || parseInt(newCampaign.minRides) <= 0)) {
-        alert('Please enter a valid minimum number of rides.');
-        return;
-      }
-      if (!newCampaign.qualifyStartDate || !newCampaign.qualifyEndDate) {
-        alert('Please select qualification start and end dates.');
-        return;
+      // Validate each service's criteria
+      for (const criteria of campaignData.qualifyingCriteria) {
+        if (criteria.criteriaType === 'distance' && (!criteria.minDistanceKm || criteria.minDistanceKm <= 0)) {
+          alert(`Please enter a valid minimum distance for service.`);
+          return;
+        }
+        if (criteria.criteriaType === 'rides' && (!criteria.minRides || criteria.minRides <= 0)) {
+          alert(`Please enter a valid minimum number of rides for service.`);
+          return;
+        }
+        if (!criteria.qualifyStartDate || !criteria.qualifyEndDate) {
+          alert(`Please select start and end dates for all qualifying services.`);
+          return;
+        }
       }
     }
 
@@ -356,28 +421,33 @@ const CampaignManager: React.FC = () => {
 
       <div className="bg-white shadow-md rounded-lg overflow-hidden border border-gray-200">
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full text-sm">
+            <thead className="bg-blue-600">
               <tr>
-                <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Campaign Name</th>
-                <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">City</th>
-                <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Discount</th>
-                <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Qualifying</th>
-                <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Period</th>
-                <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Last Modified</th>
-                <th className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
+                <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Campaign Name</th>
+                <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Country</th>
+                <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">City</th>
+                <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Discount</th>
+                <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Qualifying</th>
+                <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Period</th>
+                <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Last Modified</th>
+                <th className="px-6 py-4 text-right text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="divide-y divide-gray-200">
               {isLoading ? (
-                  <tr><td colSpan={7} className="text-center py-10 text-gray-500">Loading campaigns from Realtime Database...</td></tr>
+                  <tr><td colSpan={8} className="text-center py-10 text-gray-500">Loading campaigns from Realtime Database...</td></tr>
               ) : campaigns.length === 0 ? (
-                  <tr><td colSpan={7} className="text-center py-10 text-gray-500">No campaigns found in database.</td></tr>
+                  <tr><td colSpan={8} className="text-center py-10 text-gray-500">No campaigns found in database.</td></tr>
               ) : (
                 campaigns.map((campaign) => {
                   const isExpired = campaign.endDate ? (new Date(campaign.endDate).getTime() < new Date().getTime()) : false;
                   return (
-                  <tr key={campaign.id}>
+                  <tr 
+                    key={campaign.id}
+                    className={isExpired ? 'bg-yellow-50' : 'bg-white'}
+                    style={isExpired ? { backgroundColor: '#fefce8' } : {}}
+                  >
                     <td className="px-6 py-4">
                       <div className={`font-medium ${isExpired ? 'text-yellow-600' : 'text-gray-900'}`}>
                         {campaign.name}
@@ -388,6 +458,9 @@ const CampaignManager: React.FC = () => {
                         )}
                       </div>
                       <div className={`${isExpired ? 'text-yellow-500' : 'text-gray-500'} w-64 truncate`}>{campaign.description}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-700">
+                      {campaign.countryId || '—'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-gray-700">
                       {campaign.cityId ? (cities.find(c => c.id === campaign.cityId)?.name || '—') : '—'}
@@ -403,25 +476,46 @@ const CampaignManager: React.FC = () => {
                       <div>
                         <div className={`font-medium ${isExpired ? 'text-yellow-600' : 'text-gray-900'}`}>
                           {(() => {
-                            const svc = services.find(s => s.id === campaign.qualifyingServiceId);
-                            const label = svc ? `${svc.name} (${svc.type})` : campaign.qualifyingServiceId || 'Service';
+                            // Support new per-service criteria and legacy formats
+                            if (campaign.qualifyingCriteria && campaign.qualifyingCriteria.length > 0) {
+                              return campaign.qualifyingCriteria.map((criteria, idx) => {
+                                const svc = services.find(s => s.id === criteria.serviceId);
+                                const serviceName = svc ? `${svc.name} (${svc.type})` : criteria.serviceId;
+                                const metric = criteria.criteriaType === 'distance' 
+                                  ? `${criteria.minDistanceKm} km` 
+                                  : `${criteria.minRides} rides`;
+                                const dates = `${new Date(criteria.qualifyStartDate).toLocaleDateString()} - ${new Date(criteria.qualifyEndDate).toLocaleDateString()}`;
+                                return (
+                                  <div key={idx} className="mb-1">
+                                    {serviceName} · {metric}
+                                    <div className="text-xs text-gray-500">{dates}</div>
+                                  </div>
+                                );
+                              });
+                            }
+                            // Legacy format support
+                            const serviceIds = campaign.qualifyingServiceIds || (campaign.qualifyingServiceId ? [campaign.qualifyingServiceId] : []);
+                            if (serviceIds.length === 0) return 'No service';
+                            
+                            const serviceLabels = serviceIds.map(sid => {
+                              const svc = services.find(s => s.id === sid);
+                              return svc ? `${svc.name} (${svc.type})` : sid;
+                            }).join(', ');
+                            
                             if (campaign.criteriaType === 'distance') {
-                              return `${label} · ${campaign.minDistanceKm} km`;
+                              return `${serviceLabels} · ${campaign.minDistanceKm} km`;
                             }
                             if (campaign.criteriaType === 'rides') {
-                              return `${label} · ${campaign.minRides} rides`;
+                              return `${serviceLabels} · ${campaign.minRides} rides`;
                             }
-                            return label;
+                            return serviceLabels;
                           })()}
                         </div>
-                        <div className={`${isExpired ? 'text-yellow-500' : 'text-gray-500'} text-xs`}>
-                          {campaign.qualifyStartDate ? new Date(campaign.qualifyStartDate).toLocaleDateString() : '—'}
-                          {' - '}
-                          {campaign.qualifyEndDate ? new Date(campaign.qualifyEndDate).toLocaleDateString() : '—'}
-                          {campaign.rewardAvailableFrom ? (
-                            <span className="ml-1">• Reward from {new Date(campaign.rewardAvailableFrom).toLocaleDateString()}</span>
-                          ) : null}
-                        </div>
+                        {campaign.rewardAvailableFrom && (
+                          <div className={`${isExpired ? 'text-yellow-500' : 'text-gray-500'} text-xs mt-1`}>
+                            Reward from {new Date(campaign.rewardAvailableFrom).toLocaleDateString()}
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <span className="text-gray-400">None</span>
@@ -505,17 +599,33 @@ const CampaignManager: React.FC = () => {
                         </div>
                         <div>
                             <label htmlFor="startDate" className="block text-sm font-medium text-gray-700">Start Date</label>
-                            <input type="date" name="startDate" id="startDate" value={newCampaign.startDate} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required />
+                            <input type="date" name="startDate" id="startDate" value={newCampaign.startDate} onChange={handleInputChange} min={getTodayString()} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required />
                         </div>
                          <div>
                             <label htmlFor="endDate" className="block text-sm font-medium text-gray-700">End Date</label>
-                            <input type="date" name="endDate" id="endDate" value={newCampaign.endDate} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required />
+                            <input type="date" name="endDate" id="endDate" value={newCampaign.endDate} onChange={handleInputChange} min={newCampaign.startDate || getTodayString()} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required />
                         </div>
-                        <div className="sm:col-span-2">
-                            <label htmlFor="cityId" className="block text-sm font-medium text-gray-700">City (Optional)</label>
-                            <select id="cityId" name="cityId" value={newCampaign.cityId} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+                        <div>
+                            <label htmlFor="countryId" className="block text-sm font-medium text-gray-700">Country (Optional)</label>
+                            <select id="countryId" name="countryId" value={newCampaign.countryId} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500">
                                 <option value="">None</option>
-                                {cities.map(city => (
+                                {countries.map(country => (
+                                    <option key={country} value={country}>{country}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label htmlFor="cityId" className="block text-sm font-medium text-gray-700">City (Optional)</label>
+                            <select 
+                                id="cityId" 
+                                name="cityId" 
+                                value={newCampaign.cityId} 
+                                onChange={handleInputChange} 
+                                className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                                disabled={!newCampaign.countryId || filteredCities.length === 0}
+                            >
+                                <option value="">{!newCampaign.countryId ? 'Select country first...' : 'None'}</option>
+                                {filteredCities.map(city => (
                                     <option key={city.id} value={city.id}>{city.name}</option>
                                 ))}
                             </select>
@@ -523,13 +633,13 @@ const CampaignManager: React.FC = () => {
 
                         {/* Qualifying Criteria Section */}
                         <div className="sm:col-span-2 mt-4 pt-4 border-t border-gray-200">
-                          <div className="flex items-center justify-between">
-                            <label className="block text-sm font-medium text-gray-700">Qualifying Criteria</label>
+                          <div className="flex items-center justify-between bg-yellow-300 p-3 rounded-lg">
+                            <label className="block text-sm font-bold text-gray-900">Qualifying Criteria</label>
                             <select
                               name="hasQualifyingCriteria"
                               value={newCampaign.hasQualifyingCriteria}
                               onChange={handleInputChange}
-                              className="mt-1 px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                              className="mt-1 px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 font-semibold"
                             >
                               <option value="N">No</option>
                               <option value="Y">Yes</option>
@@ -537,71 +647,155 @@ const CampaignManager: React.FC = () => {
                           </div>
 
                           {newCampaign.hasQualifyingCriteria === 'Y' && (
-                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              <div className="sm:col-span-2">
-                                <label htmlFor="qualifyingServiceId" className="block text-sm font-medium text-gray-700">Qualifying Service</label>
+                            <div className="mt-3 space-y-4">
+                              {/* Add new qualifying service */}
+                              <div className="flex gap-2">
                                 <select
-                                  id="qualifyingServiceId"
-                                  name="qualifyingServiceId"
-                                  value={newCampaign.qualifyingServiceId}
+                                  className="flex-1 px-3 py-2 border-2 border-yellow-400 bg-yellow-50 rounded-md shadow-sm focus:outline-none focus:ring-yellow-500 focus:border-yellow-500 font-semibold text-gray-900"
                                   onChange={(e) => {
-                                    const val = e.target.value;
-                                    const svc = services.find(s => s.id === val);
+                                    const serviceId = e.target.value;
+                                    if (!serviceId) return;
+                                    // Check if already added
+                                    if (newCampaign.qualifyingCriteria.some(c => c.serviceId === serviceId)) {
+                                      alert('This service is already added');
+                                      return;
+                                    }
+                                    const svc = services.find(s => s.id === serviceId);
+                                    const criteriaType = svc?.type.toLowerCase().includes('train') ? 'rides' : 'distance';
                                     setNewCampaign(prev => ({
                                       ...prev,
-                                      qualifyingServiceId: val,
-                                      criteriaType: svc ? (svc.type.toLowerCase().includes('train') ? 'rides' : (svc.type.toLowerCase().includes('scooter') ? 'distance' : prev.criteriaType)) : prev.criteriaType
+                                      qualifyingCriteria: [
+                                        ...prev.qualifyingCriteria,
+                                        {
+                                          serviceId,
+                                          criteriaType,
+                                          minDistanceKm: criteriaType === 'distance' ? 0 : undefined,
+                                          minRides: criteriaType === 'rides' ? 0 : undefined,
+                                          qualifyStartDate: getTodayString(),
+                                          qualifyEndDate: '',
+                                        }
+                                      ]
                                     }));
+                                    e.target.value = '';
                                   }}
-                                  className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                                 >
-                                  <option value="">Select a service</option>
+                                  <option value="" className="font-bold">➕ Add Qualifying Service</option>
                                   {services.map(s => (
                                     <option key={s.id} value={s.id}>{s.name} ({s.type})</option>
                                   ))}
                                 </select>
                               </div>
 
-                              {newCampaign.criteriaType === 'distance' && (
-                                <div>
-                                  <label htmlFor="minDistanceKm" className="block text-sm font-medium text-gray-700">Minimum Distance (km)</label>
-                                  <input
-                                    type="number"
-                                    id="minDistanceKm"
-                                    name="minDistanceKm"
-                                    value={newCampaign.minDistanceKm}
-                                    onChange={handleInputChange}
-                                    className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                                    placeholder="e.g. 10"
-                                    min={0}
-                                  />
-                                </div>
-                              )}
+                              {/* Display added services */}
+                              {newCampaign.qualifyingCriteria.map((criteria, index) => {
+                                const svc = services.find(s => s.id === criteria.serviceId);
+                                return (
+                                  <div key={index} className="p-4 border border-gray-200 rounded-md bg-gray-50">
+                                    <div className="flex justify-between items-start mb-3">
+                                      <div className="font-medium text-gray-900">
+                                        {svc ? `${svc.name} (${svc.type})` : criteria.serviceId}
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setNewCampaign(prev => ({
+                                            ...prev,
+                                            qualifyingCriteria: prev.qualifyingCriteria.filter((_, i) => i !== index)
+                                          }));
+                                        }}
+                                        className="text-red-600 hover:text-red-900 text-sm"
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700">Criteria Type</label>
+                                        <select
+                                          value={criteria.criteriaType}
+                                          onChange={(e) => {
+                                            const newType = e.target.value as 'distance' | 'rides';
+                                            setNewCampaign(prev => ({
+                                              ...prev,
+                                              qualifyingCriteria: prev.qualifyingCriteria.map((c, i) => 
+                                                i === index ? {
+                                                  ...c,
+                                                  criteriaType: newType,
+                                                  minDistanceKm: newType === 'distance' ? (c.minDistanceKm || 0) : undefined,
+                                                  minRides: newType === 'rides' ? (c.minRides || 0) : undefined,
+                                                } : c
+                                              )
+                                            }));
+                                          }}
+                                          className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                                        >
+                                          <option value="distance">Distance (km)</option>
+                                          <option value="rides">Rides</option>
+                                        </select>
+                                      </div>
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700">
+                                          {criteria.criteriaType === 'distance' ? 'Minimum Distance (km)' : 'Minimum Rides'}
+                                        </label>
+                                        <input
+                                          type="number"
+                                          value={criteria.criteriaType === 'distance' ? (criteria.minDistanceKm || '') : (criteria.minRides || '')}
+                                          onChange={(e) => {
+                                            const value = parseFloat(e.target.value) || 0;
+                                            setNewCampaign(prev => ({
+                                              ...prev,
+                                              qualifyingCriteria: prev.qualifyingCriteria.map((c, i) => 
+                                                i === index ? {
+                                                  ...c,
+                                                  [criteria.criteriaType === 'distance' ? 'minDistanceKm' : 'minRides']: value
+                                                } : c
+                                              )
+                                            }));
+                                          }}
+                                          className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                                          min={0}
+                                          step={criteria.criteriaType === 'distance' ? '0.1' : '1'}
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700">Qualify Start Date</label>
+                                        <input
+                                          type="date"
+                                          value={criteria.qualifyStartDate}
+                                          onChange={(e) => {
+                                            setNewCampaign(prev => ({
+                                              ...prev,
+                                              qualifyingCriteria: prev.qualifyingCriteria.map((c, i) => 
+                                                i === index ? { ...c, qualifyStartDate: e.target.value } : c
+                                              )
+                                            }));
+                                          }}
+                                          min={getTodayString()}
+                                          className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700">Qualify End Date</label>
+                                        <input
+                                          type="date"
+                                          value={criteria.qualifyEndDate}
+                                          onChange={(e) => {
+                                            setNewCampaign(prev => ({
+                                              ...prev,
+                                              qualifyingCriteria: prev.qualifyingCriteria.map((c, i) => 
+                                                i === index ? { ...c, qualifyEndDate: e.target.value } : c
+                                              )
+                                            }));
+                                          }}
+                                          min={criteria.qualifyStartDate || getTodayString()}
+                                          className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
 
-                              {newCampaign.criteriaType === 'rides' && (
-                                <div>
-                                  <label htmlFor="minRides" className="block text-sm font-medium text-gray-700">Minimum Number of Rides</label>
-                                  <input
-                                    type="number"
-                                    id="minRides"
-                                    name="minRides"
-                                    value={newCampaign.minRides}
-                                    onChange={handleInputChange}
-                                    className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                                    placeholder="e.g. 5"
-                                    min={0}
-                                  />
-                                </div>
-                              )}
-
-                              <div>
-                                <label htmlFor="qualifyStartDate" className="block text-sm font-medium text-gray-700">Qualify Start</label>
-                                <input type="date" id="qualifyStartDate" name="qualifyStartDate" value={newCampaign.qualifyStartDate} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
-                              </div>
-                              <div>
-                                <label htmlFor="qualifyEndDate" className="block text-sm font-medium text-gray-700">Qualify End</label>
-                                <input type="date" id="qualifyEndDate" name="qualifyEndDate" value={newCampaign.qualifyEndDate} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
-                              </div>
                               <div className="sm:col-span-2">
                                 <label htmlFor="rewardAvailableFrom" className="block text-sm font-medium text-gray-700">Reward Available From</label>
                                 <input type="date" id="rewardAvailableFrom" name="rewardAvailableFrom" value={newCampaign.rewardAvailableFrom} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" />

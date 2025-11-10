@@ -8,6 +8,7 @@ import { logAudit, calculateChanges } from '../services/auditService';
 const initialNewZoneState = {
     name: '',
     type: '',
+    country: '',
     location: '',
 };
 
@@ -18,8 +19,27 @@ const ZoneManager: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [newZone, setNewZone] = useState(initialNewZoneState);
     const [editingZone, setEditingZone] = useState<Zone | null>(null);
-    const [cities, setCities] = useState<Array<{ id: string; name: string; population: number }>>([]);
+    const [countries, setCountries] = useState<string[]>([]);
+    const [cities, setCities] = useState<Array<{ id: string; name: string; country: string; population: number }>>([]);
+    const [filteredCities, setFilteredCities] = useState<string[]>([]);
     const [zoneTypes, setZoneTypes] = useState<Array<{ id: string; name: string }>>([]);
+
+    // Fetch countries from reference data
+    useEffect(() => {
+        const database = getDatabase();
+        const countriesRef = ref(database, 'referenceCountries');
+        const unsubscribe = onValue(countriesRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                const countriesArray = Object.values(data).map((country: any) => country.name);
+                countriesArray.sort((a: string, b: string) => a.localeCompare(b));
+                setCountries(countriesArray);
+            } else {
+                setCountries([]);
+            }
+        });
+        return () => unsubscribe();
+    }, []);
 
     // Fetch zone types from reference data
     useEffect(() => {
@@ -51,6 +71,7 @@ const ZoneManager: React.FC = () => {
                 const citiesArray = Object.entries(data).map(([id, city]: [string, any]) => ({
                     id,
                     name: city.name,
+                    country: city.country || '',
                     population: city.population
                 }));
                 // Sort by population (descending)
@@ -61,6 +82,24 @@ const ZoneManager: React.FC = () => {
 
         return () => unsubscribe();
     }, []);
+
+    // Filter cities by selected country
+    useEffect(() => {
+        if (!newZone.country) {
+            setFilteredCities([]);
+            return;
+        }
+        const filtered = cities
+            .filter(city => {
+                // Match by exact country
+                if (city.country === newZone.country) return true;
+                // Legacy support: Include cities with empty country if selecting Germany
+                if (!city.country && newZone.country === 'Germany') return true;
+                return false;
+            })
+            .map(city => city.name);
+        setFilteredCities(filtered);
+    }, [newZone.country, cities]);
 
     const fetchZones = useCallback(async () => {
         setIsLoading(true);
@@ -88,7 +127,14 @@ const ZoneManager: React.FC = () => {
                         lastModifiedAt: lastModifiedISO,
                     } as Zone;
                 });
-                zonesList.sort((a, b) => new Date(b.lastModifiedAt).getTime() - new Date(a.lastModifiedAt).getTime());
+                // Sort by Location (alphabetical), then by Type (alphabetical), then by Zone Name
+                zonesList.sort((a, b) => {
+                    const locationCompare = a.location.localeCompare(b.location);
+                    if (locationCompare !== 0) return locationCompare;
+                    const typeCompare = a.type.localeCompare(b.type);
+                    if (typeCompare !== 0) return typeCompare;
+                    return a.name.localeCompare(b.name);
+                });
                 setZones(zonesList);
             } else {
                 setZones([]);
@@ -112,6 +158,7 @@ const ZoneManager: React.FC = () => {
         }
         setEditingZone(null);
         setNewZone(initialNewZoneState);
+        setFilteredCities([]);
         setIsModalOpen(true);
     };
 
@@ -120,8 +167,18 @@ const ZoneManager: React.FC = () => {
         setNewZone({
             name: zone.name,
             type: zone.type,
+            country: zone.country || '',
             location: zone.location,
         });
+        // Pre-filter cities for the zone's country
+        const filtered = cities
+            .filter(city => {
+                if (city.country === zone.country) return true;
+                if (!city.country && zone.country === 'Germany') return true;
+                return false;
+            })
+            .map(city => city.name);
+        setFilteredCities(filtered);
         setIsModalOpen(true);
     };
 
@@ -132,7 +189,7 @@ const ZoneManager: React.FC = () => {
 
     const handleSaveZone = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newZone.name || !newZone.location) {
+        if (!newZone.name || !newZone.country || !newZone.location) {
             alert("Please fill in all fields.");
             return;
         }
@@ -154,7 +211,7 @@ const ZoneManager: React.FC = () => {
                 // Log audit for update
                 if (currentUser) {
                     const changes = calculateChanges(
-                        { name: editingZone.name, type: editingZone.type, location: editingZone.location },
+                        { name: editingZone.name, type: editingZone.type, country: editingZone.country, location: editingZone.location },
                         newZone
                     );
                     await logAudit({
@@ -246,27 +303,29 @@ const ZoneManager: React.FC = () => {
 
             <div className="bg-white shadow-md rounded-lg overflow-hidden border border-gray-200">
                 <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
+                    <table className="min-w-full text-sm">
+                        <thead className="bg-blue-600">
                             <tr>
-                                <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Zone Name</th>
-                                <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                                <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Location</th>
-                                <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Last Modified</th>
-                                <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
+                                <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Country</th>
+                                <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">City</th>
+                                <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Type</th>
+                                <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Zone Name</th>
+                                <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Last Modified</th>
+                                <th scope="col" className="px-6 py-4 text-right text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                              {isLoading ? (
-                                <tr><td colSpan={5} className="text-center py-10 text-gray-500">Loading zones from Realtime Database...</td></tr>
+                                <tr><td colSpan={6} className="text-center py-10 text-gray-500">Loading zones from Realtime Database...</td></tr>
                             ) : zones.length === 0 ? (
-                                <tr><td colSpan={5} className="text-center py-10 text-gray-500">No zones found in database.</td></tr>
+                                <tr><td colSpan={6} className="text-center py-10 text-gray-500">No zones found in database.</td></tr>
                             ) : (
                                 zones.map((zone) => (
                                     <tr key={zone.id}>
-                                        <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{zone.name}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-gray-700">{zone.type}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{zone.country || '—'}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-gray-700">{zone.location}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-gray-700">{zone.type}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-gray-700">{zone.name}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-gray-500">
                                             {new Date(zone.lastModifiedAt).toLocaleString()}
                                             <div className="text-xs text-gray-400">by {zone.lastModifiedBy}</div>
@@ -292,8 +351,31 @@ const ZoneManager: React.FC = () => {
                                 <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Zone Name</label>
                                 <input type="text" id="name" name="name" value={newZone.name} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required />
                             </div>
+                            <div className="mb-4">
+                                <label htmlFor="country" className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                                <select 
+                                    id="country" 
+                                    name="country" 
+                                    value={newZone.country} 
+                                    onChange={handleInputChange} 
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" 
+                                    required
+                                >
+                                    <option value="">Select Country...</option>
+                                    {countries.map((country) => (
+                                        <option key={country} value={country}>
+                                            {country}
+                                        </option>
+                                    ))}
+                                </select>
+                                {countries.length === 0 && (
+                                    <p className="mt-1 text-sm text-gray-500">
+                                        No countries available. Add countries in Reference Data first.
+                                    </p>
+                                )}
+                            </div>
                              <div className="mb-4">
-                                <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">Location (City)</label>
+                                <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">City</label>
                                 <select 
                                     id="location" 
                                     name="location" 
@@ -301,17 +383,18 @@ const ZoneManager: React.FC = () => {
                                     onChange={handleInputChange} 
                                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" 
                                     required
+                                    disabled={!newZone.country || filteredCities.length === 0}
                                 >
-                                    <option value="">Select a city...</option>
-                                    {cities.map((city) => (
-                                        <option key={city.id} value={city.name}>
-                                            {city.name}
+                                    <option value="">{!newZone.country ? 'Select country first...' : 'Select City...'}</option>
+                                    {filteredCities.map((cityName) => (
+                                        <option key={cityName} value={cityName}>
+                                            {cityName}
                                         </option>
                                     ))}
                                 </select>
-                                {cities.length === 0 && (
+                                {newZone.country && filteredCities.length === 0 && (
                                     <p className="mt-1 text-sm text-gray-500">
-                                        No cities available. Add cities in Reference Data first.
+                                        No cities available for this country. Add cities in Reference Data first.
                                     </p>
                                 )}
                             </div>

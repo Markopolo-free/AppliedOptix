@@ -31,7 +31,8 @@ export interface Zone {
     id: string;
     name: string;
     type: string; // Zone type from reference data
-    location: string; // e.g., 'Berlin', 'Munich'
+    country: string; // Country from reference data
+    location: string; // City from reference data (filtered by country)
     lastModifiedBy: string;
     lastModifiedAt: string;
 }
@@ -90,6 +91,7 @@ export interface Campaign {
     discountValue: number;
     startDate: string;
     endDate: string;
+    countryId?: string;
     cityId?: string;
     // Qualifying criteria for unlocking rewards within the campaign
     hasQualifyingCriteria?: 'Y' | 'N';
