@@ -108,9 +108,9 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, isSideba
         <div className="absolute bottom-4 left-0 right-0 px-4">
           <button
             onClick={handleLogout}
-            className="flex items-center w-full px-4 py-3 text-sm font-medium text-gray-200 hover:bg-red-600 hover:text-white transition-colors duration-200 transform rounded-lg"
+            className="flex items-center justify-center w-full px-6 py-4 text-base font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors duration-200 transform rounded-lg shadow-lg"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
             </svg>
             <span className="mx-4">Logout</span>
