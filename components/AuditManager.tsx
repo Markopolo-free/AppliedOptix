@@ -176,8 +176,8 @@ const AuditManager: React.FC = () => {
       case 'approve': return 'bg-purple-100 text-purple-800';
       case 'reject': return 'bg-orange-100 text-orange-800';
       case 'initialize': return 'bg-indigo-100 text-indigo-800';
-      case 'login': return 'bg-gray-100 text-gray-800';
-      case 'logout': return 'bg-gray-100 text-gray-800';
+      case 'login': return 'bg-green-600 text-white';
+      case 'logout': return 'bg-red-600 text-white';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -338,11 +338,11 @@ const AuditManager: React.FC = () => {
       {/* Audit Log Table */}
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full">
+            <thead className="bg-blue-600">
               <tr>
                 <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-blue-700 border-b-2 border-blue-700"
                   onClick={() => handleSort('timestamp')}
                 >
                   <div className="flex items-center">
@@ -353,7 +353,7 @@ const AuditManager: React.FC = () => {
                   </div>
                 </th>
                 <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-blue-700 border-b-2 border-blue-700"
                   onClick={() => handleSort('userName')}
                 >
                   <div className="flex items-center">
@@ -364,7 +364,7 @@ const AuditManager: React.FC = () => {
                   </div>
                 </th>
                 <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-blue-700 border-b-2 border-blue-700"
                   onClick={() => handleSort('action')}
                 >
                   <div className="flex items-center">
@@ -375,7 +375,7 @@ const AuditManager: React.FC = () => {
                   </div>
                 </th>
                 <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-blue-700 border-b-2 border-blue-700"
                   onClick={() => handleSort('entityType')}
                 >
                   <div className="flex items-center">
@@ -386,7 +386,7 @@ const AuditManager: React.FC = () => {
                   </div>
                 </th>
                 <th
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-blue-700 border-b-2 border-blue-700"
                   onClick={() => handleSort('entityName')}
                 >
                   <div className="flex items-center">
@@ -396,7 +396,7 @@ const AuditManager: React.FC = () => {
                     )}
                   </div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">
                   Changes
                 </th>
               </tr>
