@@ -4,6 +4,7 @@ import { userEmailExists, getUserByEmail } from './userManagementService';
 import { validateCredentials } from '../services/testCredentialsService';
 import DebugSecrets from './DebugSecrets';
 import { useAuth } from '../contexts/AuthContext';
+import { logAudit } from '../services/auditService';
 
 interface LandingPageProps {
   onAuthSuccess?: () => void;
@@ -52,6 +53,15 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
         const user = await getUserByEmail(email);
         if (user) {
           setCurrentUser({ email: user.email, name: user.name, role: user.role, profilePicture: user.profilePicture });
+          // Log login audit
+          await logAudit({
+            userId: user.email,
+            userName: user.name,
+            userEmail: user.email,
+            action: 'login',
+            entityType: 'auth',
+            metadata: { timestamp: new Date().toISOString() }
+          });
         }
         setStep('success');
         setError('');
