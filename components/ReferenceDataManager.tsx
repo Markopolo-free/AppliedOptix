@@ -107,7 +107,7 @@ const ReferenceDataManager: React.FC = () => {
         
         // Sort by name, code, or population
         if (activeCategory === 'countries') {
-          itemsArray.sort((a, b) => (b.population || 0) - (a.population || 0));
+          itemsArray.sort((a, b) => a.name.localeCompare(b.name));
         } else if (activeCategory === 'currencies') {
           itemsArray.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
         } else {

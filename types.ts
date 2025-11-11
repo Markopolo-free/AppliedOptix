@@ -220,6 +220,8 @@ export interface FXCampaign {
     campaignNumber: string; // Auto-generated unique campaign number
     name: string;
     description: string;
+    countryId?: string; // Country from reference data
+    cityId?: string; // City from reference data
     currency: string; // Currency code from reference data
     serviceItem: string; // Specific FX service/product
     discountType: 'Cashback' | 'Discount' | 'Bonus Points' | 'Fee Waiver';
