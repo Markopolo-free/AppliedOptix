@@ -30,22 +30,22 @@ export default defineConfig(async ({ mode }) => {
     return {
       base: mode === 'production' ? './' : '/',
       server: {
-        port: isTunnel ? 3001 : 3000,
+        port: 3001,
         host: '0.0.0.0',
         strictPort: false,
         headers: {
           'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+          'Access-Control-Allow-Headers': 'X-Requested-With, content-type, Authorization',
         },
         proxy: isTunnel ? undefined : undefined,
         hmr: isTunnel
-          ? {
-              host: DEV_TUNNEL_HOST,
-              protocol: 'wss',
-              clientPort: 443,
-              overlay: false
-            }
+          ? false  // Disable HMR for tunnel to prevent hanging
           : true,
         cors: true,
+        watch: {
+          usePolling: false,
+        },
       },
       plugins,
       define: {

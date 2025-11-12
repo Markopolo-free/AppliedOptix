@@ -2,8 +2,10 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { ref, onValue, set } from 'firebase/database';
 import { db } from '../services/firebase';
 
+// ThemeConfig remains the same
 interface ThemeConfig {
   clientName: string;
+  themeName: string;
   branding: {
     logo: string;
     siteName: string;
@@ -20,8 +22,15 @@ interface ThemeConfig {
   colorPalette: string[];
 }
 
+// ThemeLibrary: multiple named themes per client
+interface ThemeLibrary {
+  clientName: string;
+  themes: ThemeConfig[];
+}
+
 const defaultTheme: ThemeConfig = {
   clientName: 'AppliedOptix',
+  themeName: 'Default',
   branding: {
     logo: '/logo.jpg',
     siteName: 'Staff Portal',
@@ -41,8 +50,15 @@ const defaultTheme: ThemeConfig = {
   ]
 };
 
+const defaultLibrary: ThemeLibrary = {
+  clientName: 'AppliedOptix',
+  themes: [defaultTheme]
+};
+
 interface ThemeContextType {
-  theme: ThemeConfig;
+  themeLibrary: ThemeLibrary;
+  activeTheme: ThemeConfig;
+  setActiveTheme: (themeName: string) => void;
   updateTheme: (theme: ThemeConfig) => Promise<void>;
   resetTheme: () => Promise<void>;
 }
@@ -50,21 +66,25 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [theme, setTheme] = useState<ThemeConfig>(defaultTheme);
+  const [themeLibrary, setThemeLibrary] = useState<ThemeLibrary>(defaultLibrary);
+  const [activeTheme, setActiveThemeState] = useState<ThemeConfig>(defaultTheme);
 
-  // Load theme from Firebase on mount
+  // Load theme library from Firebase on mount
   useEffect(() => {
-    const themeRef = ref(db, 'theme');
+    const themeRef = ref(db, 'themeLibrary');
     const unsubscribe = onValue(themeRef, (snapshot) => {
       const data = snapshot.val();
-      if (data) {
-        setTheme(data);
-        applyThemeToDOM(data);
+      if (data && data.themes) {
+        setThemeLibrary(data);
+        // Set active theme to first theme or default
+        setActiveThemeState(data.themes[0] || defaultTheme);
+        applyThemeToDOM(data.themes[0] || defaultTheme);
       } else {
+        setThemeLibrary(defaultLibrary);
+        setActiveThemeState(defaultTheme);
         applyThemeToDOM(defaultTheme);
       }
     });
-
     return () => unsubscribe();
   }, []);
 
@@ -78,24 +98,31 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     root.style.setProperty('--text-secondary', themeConfig.branding.textSecondary);
     root.style.setProperty('--success-color', themeConfig.branding.successColor);
     root.style.setProperty('--error-color', themeConfig.branding.errorColor);
-    
-    // Apply font family with !important to override Tailwind
     if (themeConfig.branding.fontFamily) {
-      // Set a CSS variable so all elements (including those with Tailwind font utilities) can consume it
       root.style.setProperty('--app-font-family', themeConfig.branding.fontFamily);
       document.body.style.setProperty('font-family', themeConfig.branding.fontFamily, 'important');
-      console.log('Applied font from theme:', themeConfig.branding.fontFamily);
     }
-    
-    // Update document title
     document.title = themeConfig.branding.siteName;
+  };
+
+  const setActiveTheme = (themeName: string) => {
+    const found = themeLibrary.themes.find(t => t.themeName === themeName);
+    if (found) {
+      setActiveThemeState(found);
+      applyThemeToDOM(found);
+    }
   };
 
   const updateTheme = async (newTheme: ThemeConfig) => {
     try {
-      const themeRef = ref(db, 'theme');
-      await set(themeRef, newTheme);
-      setTheme(newTheme);
+      // Replace or add theme in library
+      let updatedThemes = themeLibrary.themes.filter(t => t.themeName !== newTheme.themeName);
+      updatedThemes.push(newTheme);
+      const updatedLibrary = { ...themeLibrary, themes: updatedThemes };
+      const themeRef = ref(db, 'themeLibrary');
+      await set(themeRef, updatedLibrary);
+      setThemeLibrary(updatedLibrary);
+      setActiveThemeState(newTheme);
       applyThemeToDOM(newTheme);
     } catch (error) {
       console.error('Error saving theme:', error);
@@ -105,9 +132,10 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const resetTheme = async () => {
     try {
-      const themeRef = ref(db, 'theme');
-      await set(themeRef, defaultTheme);
-      setTheme(defaultTheme);
+      const themeRef = ref(db, 'themeLibrary');
+      await set(themeRef, defaultLibrary);
+      setThemeLibrary(defaultLibrary);
+      setActiveThemeState(defaultTheme);
       applyThemeToDOM(defaultTheme);
     } catch (error) {
       console.error('Error resetting theme:', error);
@@ -116,7 +144,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, updateTheme, resetTheme }}>
+    <ThemeContext.Provider value={{ themeLibrary, activeTheme, setActiveTheme, updateTheme, resetTheme }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -130,5 +158,5 @@ export const useTheme = () => {
   return context;
 };
 
-export type { ThemeConfig };
-export { defaultTheme };
+export type { ThemeConfig, ThemeLibrary };
+export { defaultTheme, defaultLibrary };

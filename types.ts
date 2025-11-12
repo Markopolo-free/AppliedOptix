@@ -80,6 +80,7 @@ export interface ServiceQualifyingCriteria {
     minRides?: number;
     qualifyStartDate: string;
     qualifyEndDate: string;
+    operator?: 'AND' | 'OR'; // Logical operator to combine with next service
 }
 
 export interface Campaign {
@@ -95,6 +96,8 @@ export interface Campaign {
     cityId?: string;
     // Qualifying criteria for unlocking rewards within the campaign
     hasQualifyingCriteria?: 'Y' | 'N';
+    // New: How to combine multiple criteria when more than one is provided
+    qualifyingOperator?: 'AND' | 'OR';
     qualifyingServiceId?: string; // Legacy: single service (kept for backward compatibility)
     qualifyingServiceIds?: string[]; // Legacy: Multiple services (kept for backward compatibility)
     criteriaType?: 'distance' | 'rides'; // Legacy: Type of metric required

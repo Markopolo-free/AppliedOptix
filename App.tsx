@@ -19,8 +19,10 @@ const ReferenceDataManager = lazy(() => import('./components/ReferenceDataManage
 const AuditManager = lazy(() => import('./components/AuditManager'));
 const FXPricingManager = lazy(() => import('./components/FXPricingManager'));
 const UserDiscountGroupManager = lazy(() => import('./components/UserDiscountGroupManager'));
+const FXCampaignManager = lazy(() => import('./components/FXCampaignManager'));
+const FXDiscountOptionManager = lazy(() => import('./components/FXDiscountOptionManager'));
 
-type View = 'dashboard' | 'users' | 'services' | 'pricing' | 'campaigns' | 'loyalty' | 'zones' | 'theme' | 'reference' | 'audit' | 'fxpricing' | 'discountgroups';
+type View = 'dashboard' | 'users' | 'services' | 'pricing' | 'campaigns' | 'loyalty' | 'zones' | 'theme' | 'reference' | 'audit' | 'fxpricing' | 'discountgroups' | 'fxcampaigns' | 'fxdiscountoptions';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>('dashboard');
@@ -57,6 +59,10 @@ const App: React.FC = () => {
         return <FXPricingManager />;
       case 'discountgroups':
         return <UserDiscountGroupManager />;
+      case 'fxcampaigns':
+        return <FXCampaignManager />;
+      case 'fxdiscountoptions':
+        return <FXDiscountOptionManager />;
       default:
         return <Dashboard />;
     }

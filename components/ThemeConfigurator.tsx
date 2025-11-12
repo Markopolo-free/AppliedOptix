@@ -4,17 +4,19 @@ import { useAuth } from '../contexts/AuthContext';
 import { logAudit } from '../services/auditService';
 
 const ThemeConfigurator: React.FC = () => {
-  const { theme: currentTheme, updateTheme, resetTheme } = useTheme();
+  const { themeLibrary, activeTheme, setActiveTheme, updateTheme, resetTheme } = useTheme();
   const { currentUser } = useAuth();
-  const [theme, setTheme] = useState<ThemeConfig>(currentTheme);
+  const [theme, setTheme] = useState<ThemeConfig>(activeTheme);
+  const [themeName, setThemeName] = useState<string>(activeTheme.themeName || '');
   const [activeColor, setActiveColor] = useState<keyof ThemeConfig['branding']>('primaryColor');
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
   // Sync with current theme from context
   useEffect(() => {
-    setTheme(currentTheme);
-  }, [currentTheme]);
+    setTheme(activeTheme);
+    setThemeName(activeTheme.themeName || '');
+  }, [activeTheme]);
 
   const updateColor = (key: keyof ThemeConfig['branding'], value: string) => {
     setTheme({
@@ -29,6 +31,12 @@ const ThemeConfigurator: React.FC = () => {
     setHasChanges(true);
   };
 
+  const updateThemeName = (name: string) => {
+    setTheme({ ...theme, themeName: name });
+    setThemeName(name);
+    setHasChanges(true);
+  };
+
   const updateSiteName = (name: string) => {
     setTheme({
       ...theme,
@@ -40,10 +48,8 @@ const ThemeConfigurator: React.FC = () => {
   const saveTheme = async () => {
     setIsSaving(true);
     try {
-      await updateTheme(theme);
+      await updateTheme({ ...theme, themeName });
       setHasChanges(false);
-      
-      // Log audit
       if (currentUser) {
         await logAudit({
           userId: currentUser.email,
@@ -52,10 +58,9 @@ const ThemeConfigurator: React.FC = () => {
           action: 'update',
           entityType: 'reference',
           entityId: 'theme',
-          entityName: 'Application Theme'
+          entityName: `Theme: ${themeName}`
         });
       }
-      
       alert('Theme saved successfully!');
     } catch (error) {
       console.error('Error saving theme:', error);
@@ -98,12 +103,12 @@ const ThemeConfigurator: React.FC = () => {
   };
 
   const exportTheme = () => {
-    const json = JSON.stringify(theme, null, 2);
+    const json = JSON.stringify({ ...theme, themeName }, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${theme.clientName.toLowerCase()}.json`;
+    a.download = `${theme.clientName.toLowerCase()}-${themeName.toLowerCase()}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -160,9 +165,9 @@ const ThemeConfigurator: React.FC = () => {
               </div>
             </div>
 
-            {/* Client Info */}
+            {/* Client Info & Theme Name */}
             <div className="bg-white p-6 rounded-xl shadow-md">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">Client Info</h2>
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">Client & Theme Info</h2>
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Client Name</label>
@@ -171,6 +176,15 @@ const ThemeConfigurator: React.FC = () => {
                     value={theme.clientName}
                     onChange={(e) => updateClientName(e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Theme Name</label>
+                  <input
+                    type="text"
+                    value={themeName}
+                    onChange={(e) => updateThemeName(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                   />
                 </div>
                 <div>

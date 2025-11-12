@@ -337,9 +337,9 @@ const AuditManager: React.FC = () => {
 
       {/* Audit Log Table */}
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[calc(100vh-200px)] overflow-y-auto">
           <table className="min-w-full">
-            <thead className="bg-blue-600">
+            <thead className="bg-blue-600 sticky top-0 z-10">
               <tr>
                 <th
                   className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-blue-700 border-b-2 border-blue-700"

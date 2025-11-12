@@ -80,6 +80,11 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, isSideba
     { view: 'audit', label: '📊 Audit Log', icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg> },
   ];
 
+  const handleLogoutClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    handleLogout();
+  };
+
   return (
     <>
         <div className={`fixed inset-y-0 left-0 z-30 w-64 px-4 py-5 overflow-y-auto bg-gray-800 transition-transform duration-300 ease-in-out transform lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
@@ -93,7 +98,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, isSideba
           </button>
         </div>
 
-        <nav className="mt-10">
+        <nav className="mt-10 pb-24">
           {navItems.map(item => (
             <NavLink
               key={item.view}
@@ -103,19 +108,19 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, isSideba
               onClick={() => handleNavClick(item.view as View)}
             />
           ))}
-        </nav>
-
-        <div className="absolute bottom-4 left-0 right-0 px-4">
-          <button
-            onClick={handleLogout}
-            className="flex items-center justify-center w-full px-6 py-4 text-base font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors duration-200 transform rounded-lg shadow-lg"
+          
+          {/* Logout as last menu item */}
+          <a
+            href="#"
+            onClick={handleLogoutClick}
+            className="flex items-center px-4 py-3 mt-4 text-sm font-medium transition-colors duration-200 transform rounded-lg bg-red-600 text-white hover:bg-red-700"
           >
-            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
             </svg>
             <span className="mx-4">Logout</span>
-          </button>
-        </div>
+          </a>
+        </nav>
       </div>
       {isSidebarOpen && <div className="fixed inset-0 bg-black opacity-50 z-20 lg:hidden" onClick={() => setSidebarOpen(false)}></div>}
     </>

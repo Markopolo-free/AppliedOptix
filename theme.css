@@ -1,3 +1,7 @@
+/* Force white text for FX Tier Reference number */
+.fx-tier-ref {
+  color: #fff !important;
+}
 /* Theme CSS Variables - Applied dynamically by ThemeContext */
 :root {
   --primary-color: #3b82f6;

@@ -791,7 +791,7 @@ const ReferenceDataManager: React.FC = () => {
                                 setExpandedCountry({ id: item.id, name: item.name });
                                 // unsubscribe previous
                                 if (cityUnsubRef.current) { cityUnsubRef.current(); cityUnsubRef.current = null; }
-                                const qCountry = query(ref(database, 'referenceCities'), orderByChild('country'), equalTo(item.name));
+                                const qCountry = query(ref(database, 'referenceCities'), orderByChild('country'), equalTo(item.id));
                                 const unsub = onValue(qCountry, (snapshot) => {
                                   const data = snapshot.val() || {};
                                   let list = Object.entries(data).map(([id, c]: [string, any]) => ({ id, ...(c as any) }));
@@ -940,7 +940,7 @@ const ReferenceDataManager: React.FC = () => {
                                 await push(ref(database, 'referenceCities'), {
                                   name,
                                   population: pop,
-                                  country: expandedCountry.name,
+                                  country: expandedCountry.id, // Use country ID for filtering
                                   dateAdded: new Date().toISOString(),
                                   addedBy: currentUser.name || currentUser.email
                                 });
@@ -1002,7 +1002,7 @@ const ReferenceDataManager: React.FC = () => {
                                             const newData = { name: newName, population: newPop };
                                             await update(ref(database, `referenceCities/${c.id}`), {
                                               ...newData,
-                                              country: expandedCountry?.name || c.country,
+                                              country: expandedCountry?.id || c.country, // Use country ID for filtering
                                               dateAdded: new Date().toISOString(),
                                               addedBy: currentUser.name || currentUser.email
                                             });

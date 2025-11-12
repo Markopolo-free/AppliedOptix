@@ -218,7 +218,7 @@ const FXPricingManager: React.FC = () => {
           action: 'update',
           entityType: 'fxpricing',
           entityId: editingPricing.id,
-          entityName: pricingData.referenceNumber,
+          entityName: pricingData.entity,
           changes: calculateChanges(editingPricing, pricingData),
         });
 
@@ -236,7 +236,7 @@ const FXPricingManager: React.FC = () => {
           action: 'create',
           entityType: 'fxpricing',
           entityId: newFxRef.key || '',
-          entityName: pricingData.referenceNumber,
+          entityName: pricingData.entity,
         });
       }
 
@@ -297,7 +297,7 @@ const FXPricingManager: React.FC = () => {
         action: 'delete',
         entityType: 'fxpricing',
         entityId: pricingId,
-        entityName: pricingToDelete.referenceNumber,
+        entityName: pricingToDelete.entity,
       });
     } catch (error) {
       console.error('Error deleting FX pricing:', error);
@@ -321,15 +321,15 @@ const FXPricingManager: React.FC = () => {
       });
 
       // Log audit
-      await logAudit({
-        userId: currentUser.email,
-        userName: currentUser.name,
-        userEmail: currentUser.email,
-        action: 'approve',
-        entityType: 'fxpricing',
-        entityId: pricingId,
-        entityName: pricing.referenceNumber,
-      });
+        await logAudit({
+          userId: currentUser.email,
+          userName: currentUser.name,
+          userEmail: currentUser.email,
+          action: 'approve',
+          entityType: 'fxpricing',
+          entityId: pricingId,
+          entityName: pricing.entity,
+        });
     } catch (error) {
       console.error('Error approving FX pricing:', error);
       alert('Failed to approve FX pricing');
@@ -352,15 +352,15 @@ const FXPricingManager: React.FC = () => {
       });
 
       // Log audit
-      await logAudit({
-        userId: currentUser.email,
-        userName: currentUser.name,
-        userEmail: currentUser.email,
-        action: 'reject',
-        entityType: 'fxpricing',
-        entityId: pricingId,
-        entityName: pricing.referenceNumber,
-      });
+        await logAudit({
+          userId: currentUser.email,
+          userName: currentUser.name,
+          userEmail: currentUser.email,
+          action: 'reject',
+          entityType: 'fxpricing',
+          entityId: pricingId,
+          entityName: pricing.entity,
+        });
     } catch (error) {
       console.error('Error rejecting FX pricing:', error);
       alert('Failed to reject FX pricing');
@@ -679,7 +679,7 @@ const FXPricingManager: React.FC = () => {
                         />
                       </div>
                       <div className="flex flex-col items-start justify-center">
-                        <span className="text-xs font-mono text-blue-700">Ref: {subRef}</span>
+                        <span className="text-xs font-mono fx-tier-ref">Ref: {subRef}</span>
                       </div>
                       {tiers.length > 1 && (
                         <button
@@ -722,23 +722,24 @@ const FXPricingManager: React.FC = () => {
       )}
 
       {/* FX Pricings Table */}
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
-        <table className="min-w-full">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="px-4 py-3 text-left text-sm font-semibold">Reference</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold">Entity</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold">Country</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold">Currency Pair</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold">Tiers</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold">Segment</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold">Channel</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold">Active Period</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold">Status</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="overflow-x-auto max-h-[calc(100vh-200px)] overflow-y-auto">
+          <table className="min-w-full">
+            <thead className="bg-gray-100 sticky top-0 z-10">
+              <tr>
+                <th className="px-4 py-3 text-left text-sm font-semibold">Reference</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold">Entity</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold">Country</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold">Currency Pair</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold">Tiers</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold">Segment</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold">Channel</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold">Active Period</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold">Status</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
             {filteredPricings.length === 0 ? (
               <tr>
                 <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
@@ -765,8 +766,8 @@ const FXPricingManager: React.FC = () => {
                           const currencyPair = `${pricing.baseCurrency}${pricing.quoteCurrency}`;
                           const subRef = `${pricing.referenceNumber}-${currencyPair}-T${idx+1}`;
                           return (
-                            <div key={idx} className="bg-gray-50 p-2 rounded">
-                              <div className="font-mono text-xs text-gray-700 mb-1">Ref: {subRef}</div>
+                            <div key={idx} className="bg-gray-900 p-2 rounded">
+                              <div className="font-mono text-xs mb-1 fx-tier-ref">Ref: {subRef}</div>
                               {tier.minValue.toLocaleString()} - {tier.maxValue.toLocaleString()}: {tier.marginPercentage}%
                             </div>
                           );
@@ -820,6 +821,7 @@ const FXPricingManager: React.FC = () => {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Summary Stats */}

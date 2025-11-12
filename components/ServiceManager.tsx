@@ -328,9 +328,9 @@ const ServiceManager: React.FC = () => {
             </div>
 
             <div className="bg-white shadow-md rounded-lg overflow-hidden border border-gray-200">
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto max-h-[calc(100vh-200px)] overflow-y-auto">
                     <table className="min-w-full text-sm">
-                        <thead className="bg-blue-600">
+                        <thead className="bg-blue-600 sticky top-0 z-10">
                             <tr>
                                 <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Service Name</th>
                                 <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Type</th>

@@ -1,0 +1,145 @@
+{
+  "-OcoNl01U9NF2S6A8A43": {
+    "cityId": "-OdiYVKUSFnktchp5wp4",
+    "countryId": "Austria",
+    "description": "winter campaign test",
+    "discountType": "Fixed Amount",
+    "discountValue": 1,
+    "endDate": "2026-03-01",
+    "hasQualifyingCriteria": "N",
+    "lastModifiedAt": 1762791428812,
+    "lastModifiedBy": "markis@gmail.com",
+    "name": "Markopol0",
+    "serviceIds": [
+      "svc_1",
+      "svc_3"
+    ],
+    "startDate": "2025-10-30"
+  },
+  "-Od8QEwwdgxuJucYfLdE": {
+    "cityId": "-Od8-uRgxzLj0_2cuxe9",
+    "countryId": "Germany",
+    "criteriaType": "distance",
+    "description": "fly high this summer and enjoy a discount",
+    "discountType": "Percentage",
+    "discountValue": 15,
+    "endDate": "2025-11-11",
+    "hasQualifyingCriteria": "Y",
+    "lastModifiedAt": 1762791255112,
+    "lastModifiedBy": "markis@gmail.com",
+    "minDistanceKm": 1,
+    "name": "Balloon Discount - July ",
+    "qualifyEndDate": "2026-03-01",
+    "qualifyStartDate": "2025-11-05",
+    "qualifyingCriteria": [
+      {
+        "criteriaType": "distance",
+        "minDistanceKm": 1,
+        "qualifyEndDate": "2026-03-01",
+        "qualifyStartDate": "2025-11-05",
+        "serviceId": "-Od8Oh1Vt5o705oQmHoh"
+      }
+    ],
+    "qualifyingServiceId": "-Od8Oh1Vt5o705oQmHoh",
+    "rewardAvailableFrom": "2026-03-18",
+    "serviceIds": [
+      "-Od8Oh1Vt5o705oQmHoh"
+    ],
+    "startDate": "2025-10-27"
+  },
+  "-OdEeVWvL-aQ9bV8ijwb": {
+    "cityId": "-Od8-u4-MAAj2eOmKm3h",
+    "countryId": "Germany",
+    "criteriaType": "distance",
+    "description": "test after release",
+    "discountType": "Percentage",
+    "discountValue": 3,
+    "endDate": "2026-02-25",
+    "hasQualifyingCriteria": "Y",
+    "lastModifiedAt": 1762791266697,
+    "lastModifiedBy": "markis@gmail.com",
+    "minDistanceKm": 10,
+    "name": "Mark Hibbard the administrator",
+    "qualifyEndDate": "2025-11-19",
+    "qualifyStartDate": "2025-11-10",
+    "qualifyingCriteria": [
+      {
+        "criteriaType": "distance",
+        "minDistanceKm": 10,
+        "qualifyEndDate": "2025-11-19",
+        "qualifyStartDate": "2025-11-10",
+        "serviceId": "-OcoaO-KiRjyTmksnNEi"
+      }
+    ],
+    "qualifyingServiceId": "-OcoaO-KiRjyTmksnNEi",
+    "rewardAvailableFrom": "2025-11-20",
+    "serviceIds": [
+      "-OcoaO-KiRjyTmksnNEi"
+    ],
+    "startDate": "2025-11-06"
+  },
+  "-OdEmw9Zw3lL4IYSsUHA": {
+    "criteriaType": "distance",
+    "description": "pedal to accrue rewards and enjoy the discounts on an e-service",
+    "discountType": "Percentage",
+    "discountValue": 25,
+    "endDate": "2025-10-30",
+    "hasQualifyingCriteria": "Y",
+    "lastModifiedAt": 1762331692199,
+    "lastModifiedBy": "markis@gmail.com",
+    "minDistanceKm": 150,
+    "name": "Test Campaign ",
+    "qualifyEndDate": "2025-12-31",
+    "qualifyStartDate": "2025-12-01",
+    "qualifyingServiceId": "-OcobjvykpeAZklikhUT",
+    "rewardAvailableFrom": "2026-01-01",
+    "serviceIds": [
+      "-OcoYGMjz-YDnmOUrHdq",
+      "-OcoYU402kdBDm9culTK",
+      "-OcotZ_bhFKGHfRbtcDx"
+    ],
+    "startDate": "2025-11-02"
+  },
+  "-OdSZjj46Wb5ImIkLCbX": {
+    "cityId": "-Od8-ujqZHZ_RQKCA-RL",
+    "countryId": "Germany",
+    "description": "multiple QC",
+    "discountType": "Percentage",
+    "discountValue": 5,
+    "endDate": "2025-12-03",
+    "hasQualifyingCriteria": "Y",
+    "lastModifiedAt": 1762927842540,
+    "lastModifiedBy": "markis@gmail.com",
+    "name": "Markopolo Trial",
+    "qualifyingCriteria": [
+      {
+        "criteriaType": "distance",
+        "minDistanceKm": 10.7,
+        "qualifyEndDate": "2025-11-28",
+        "qualifyStartDate": "2025-11-10",
+        "serviceId": "-OcoYGMjz-YDnmOUrHdq"
+      },
+      {
+        "criteriaType": "distance",
+        "minDistanceKm": 5.4,
+        "qualifyEndDate": "2025-11-30",
+        "qualifyStartDate": "2025-11-10",
+        "serviceId": "-OcoYU402kdBDm9culTK"
+      },
+      {
+        "criteriaType": "distance",
+        "minDistanceKm": 6,
+        "qualifyEndDate": "2025-11-26",
+        "qualifyStartDate": "2025-11-12",
+        "serviceId": "-Od9gJDh3WH_ncB6KYmd"
+      }
+    ],
+    "rewardAvailableFrom": "2025-12-01",
+    "serviceIds": [
+      "-OcoYGMjz-YDnmOUrHdq",
+      "-OcoYU402kdBDm9culTK",
+      "-OcobjvykpeAZklikhUT"
+    ],
+    "startDate": "2025-11-10"
+  }
+}

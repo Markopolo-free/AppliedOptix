@@ -265,19 +265,19 @@ const UserDiscountGroupManager: React.FC = () => {
       )}
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+        <table className="min-w-full">
+          <thead className="bg-blue-600">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Services</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Discount</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cap</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Effective Date</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expiry Date</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase border-b-2 border-blue-700">Name</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase border-b-2 border-blue-700">Services</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase border-b-2 border-blue-700">Discount</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase border-b-2 border-blue-700">Cap</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase border-b-2 border-blue-700">Effective Date</th>
+              <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase border-b-2 border-blue-700">Expiry Date</th>
+              <th className="px-6 py-4 text-right text-sm font-bold text-white uppercase border-b-2 border-blue-700">Actions</th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="divide-y divide-gray-200">
             {discountGroups.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
@@ -285,9 +285,22 @@ const UserDiscountGroupManager: React.FC = () => {
                 </td>
               </tr>
             ) : (
-              discountGroups.map((group) => (
-                <tr key={group.id}>
-                  <td className="px-6 py-4 whitespace-nowrap font-medium">{group.name}</td>
+              discountGroups.map((group) => {
+                const isExpired = group.expiryDate ? new Date(group.expiryDate).getTime() < new Date().getTime() : false;
+                return (
+                <tr 
+                  key={group.id}
+                  className={isExpired ? 'bg-yellow-50' : 'bg-white'}
+                  style={isExpired ? { backgroundColor: '#fefce8' } : {}}
+                >
+                  <td className="px-6 py-4 whitespace-nowrap font-medium">
+                    {group.name}
+                    {isExpired && (
+                      <span className="ml-2 inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-800 border border-yellow-200">
+                        Expired
+                      </span>
+                    )}
+                  </td>
                   <td className="px-6 py-4 text-sm text-gray-600">{getServiceNames(group.serviceIds)}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {group.discountType === 'percentage' 
@@ -314,7 +327,8 @@ const UserDiscountGroupManager: React.FC = () => {
                     </button>
                   </td>
                 </tr>
-              ))
+              );
+              })
             )}
           </tbody>
         </table>
