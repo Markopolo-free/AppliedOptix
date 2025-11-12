@@ -3,9 +3,14 @@
 // Returns empty credentials in production if the file is not available
 
 // Conditional import - only available in dev (file is in .gitignore)
-// @ts-ignore
-const testCredentialsModules = import.meta.glob('../test-credentials.json', { eager: true, import: 'default' });
-const testCredentialsData = testCredentialsModules['../test-credentials.json'] as { credentials: Credential[] } | undefined;
+// Load test credentials from public directory for all environments
+let testCredentialsData: { credentials: Credential[] } | undefined = undefined;
+try {
+  // @ts-ignore
+  testCredentialsData = await (await fetch('/test-credentials.json')).json();
+} catch (e) {
+  console.log('Test credentials not loaded (file not found - expected in production)');
+}
 
 export interface Credential {
   username: string;
