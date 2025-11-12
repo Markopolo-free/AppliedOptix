@@ -1,4 +1,3 @@
-
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
@@ -6,6 +5,7 @@ import App from './App';
 import 'use-sync-external-store/shim/index.js';
 // Import theme CSS for dynamic theming
 import './theme.css';
+import { loadTestCredentials } from './services/testCredentialsService';
 
 type EBState = { error: any };
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBState> {
@@ -43,21 +43,24 @@ try {
   console.log('[diag] React version:', (React as any).version);
 } catch {}
 
-const root = ReactDOM.createRoot(rootElement);
-try {
-  // Disable StrictMode during investigation to avoid double-invocation
-  root.render(
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
-  );
-} catch (err: any) {
-  // Fallback if React render throws before ErrorBoundary can capture
-  console.error('[boot] React render failed:', err);
+// Load test credentials before rendering the app
+loadTestCredentials().finally(() => {
+  const root = ReactDOM.createRoot(rootElement);
   try {
-    rootElement.style.padding = '16px';
-    rootElement.style.fontFamily = 'sans-serif';
-    rootElement.style.color = '#b91c1c';
-    rootElement.innerText = 'React failed to render: ' + (err?.message || String(err));
-  } catch {}
-}
+    // Disable StrictMode during investigation to avoid double-invocation
+    root.render(
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    );
+  } catch (err: any) {
+    // Fallback if React render throws before ErrorBoundary can capture
+    console.error('[boot] React render failed:', err);
+    try {
+      rootElement.style.padding = '16px';
+      rootElement.style.fontFamily = 'sans-serif';
+      rootElement.style.color = '#b91c1c';
+      rootElement.innerText = 'React failed to render: ' + (err?.message || String(err));
+    } catch {}
+  }
+});

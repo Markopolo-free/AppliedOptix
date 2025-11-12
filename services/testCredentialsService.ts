@@ -4,12 +4,20 @@
 
 // Conditional import - only available in dev (file is in .gitignore)
 // Load test credentials from public directory for all environments
+
 let testCredentialsData: { credentials: Credential[] } | undefined = undefined;
-try {
-  // @ts-ignore
-  testCredentialsData = await (await fetch('/test-credentials.json')).json();
-} catch (e) {
-  console.log('Test credentials not loaded (file not found - expected in production)');
+
+export async function loadTestCredentials(): Promise<Credential[]> {
+  try {
+    const response = await fetch('/test-credentials.json');
+    if (!response.ok) throw new Error('File not found');
+    const data = await response.json();
+    testCredentialsData = data;
+    return data.credentials || [];
+  } catch (e) {
+    console.log('Test credentials not loaded (file not found - expected in production)');
+    return [];
+  }
 }
 
 export interface Credential {
@@ -18,11 +26,7 @@ export interface Credential {
 }
 
 export function getTestCredentials(): Credential[] {
-  if (!testCredentialsData) {
-    console.log('Test credentials not loaded (file not found - expected in production)');
-    return [];
-  }
-  return testCredentialsData.credentials || [];
+  return testCredentialsData?.credentials || [];
 }
 
 export function validateCredentials(username: string, password: string): boolean {
