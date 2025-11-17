@@ -1,3 +1,4 @@
+import Modal from 'react-modal';
 import React, { useState, useEffect } from 'react';
 import { useTheme, ThemeConfig, defaultTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,6 +12,8 @@ const ThemeConfigurator: React.FC = () => {
   const [activeColor, setActiveColor] = useState<keyof ThemeConfig['branding']>('primaryColor');
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [pendingSave, setPendingSave] = useState(false);
 
   // Sync with current theme from context
   useEffect(() => {
@@ -46,6 +49,11 @@ const ThemeConfigurator: React.FC = () => {
   };
 
   const saveTheme = async () => {
+    if (!themeName.trim()) {
+      setShowNameModal(true);
+      setPendingSave(true);
+      return;
+    }
     setIsSaving(true);
     try {
       await updateTheme({ ...theme, themeName });
@@ -67,6 +75,14 @@ const ThemeConfigurator: React.FC = () => {
       alert('Failed to save theme. Please try again.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleNameModalSave = () => {
+    setShowNameModal(false);
+    if (pendingSave && themeName.trim()) {
+      setPendingSave(false);
+      saveTheme();
     }
   };
 
@@ -147,6 +163,29 @@ const ThemeConfigurator: React.FC = () => {
           {/* Left Panel: Configuration */}
           <div className="space-y-6">
             {/* Presets */}
+            <Modal
+              isOpen={showNameModal}
+              onRequestClose={() => setShowNameModal(false)}
+              contentLabel="Enter Theme Name"
+              ariaHideApp={false}
+              style={{ content: { maxWidth: '400px', margin: 'auto', padding: '2em' } }}
+            >
+              <h2 className="text-xl font-semibold mb-4">Enter Theme Name</h2>
+              <input
+                type="text"
+                value={themeName}
+                onChange={e => setThemeName(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 mb-4"
+                placeholder="Theme Name"
+              />
+              <button
+                onClick={handleNameModalSave}
+                className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold"
+                disabled={!themeName.trim()}
+              >
+                Save Theme
+              </button>
+            </Modal>
             <div className="bg-white p-6 rounded-xl shadow-md">
               <h2 className="text-xl font-semibold text-gray-800 mb-4">Quick Presets</h2>
               <div className="flex gap-3">
@@ -180,12 +219,40 @@ const ThemeConfigurator: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Theme Name</label>
-                  <input
-                    type="text"
-                    value={themeName}
-                    onChange={(e) => updateThemeName(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                  />
+                  <div className="flex gap-2">
+                    <select
+                      value={themeLibrary.themes.some(t => t.themeName === themeName) ? themeName : ''}
+                      onChange={e => {
+                        const selected = e.target.value;
+                        if (selected) {
+                          updateThemeName(selected);
+                          const found = themeLibrary.themes.find(t => t.themeName === selected);
+                          if (found) {
+                            setTheme(found);
+                            if (setActiveTheme) setActiveTheme(selected);
+                          }
+                        } else {
+                          setThemeName('');
+                          updateThemeName('');
+                        }
+                      }}
+                      className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                      style={{ minWidth: '160px' }}
+                    >
+                      <option value="">(New Theme Name)</option>
+                      {themeLibrary.themes.map((t, idx) => (
+                        <option key={idx} value={t.themeName}>{t.themeName}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      value={themeName}
+                      onChange={e => updateThemeName(e.target.value)}
+                      placeholder="Enter theme name"
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">Select an existing theme or enter a new name.</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Site Name</label>
