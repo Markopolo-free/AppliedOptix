@@ -13,6 +13,11 @@ interface ServiceTypeOption {
     model?: string;
 }
 
+function generateSRN() {
+    const alpha = Array(2).fill(0).map(() => String.fromCharCode(65 + Math.floor(Math.random() * 26))).join('');
+    const numeric = String(Math.floor(100 + Math.random() * 900));
+    return alpha + numeric;
+}
 const initialNewRuleState = {
     description: '',
     serviceIds: [] as string[],
@@ -23,6 +28,7 @@ const initialNewRuleState = {
     minimumUsage: '',
     zoneId: '',
     zoneDiscount: '',
+    serviceReferenceNumber: '',
 };
 
 const PricingManager: React.FC = () => {
@@ -152,7 +158,7 @@ const PricingManager: React.FC = () => {
 
     const handleOpenModalForAdd = () => {
         setEditingRule(null);
-        setFormData(initialNewRuleState);
+        setFormData({ ...initialNewRuleState, serviceReferenceNumber: generateSRN() });
         setSelectedLocation('');
         setSelectedZoneType('');
         setIsModalOpen(true);
@@ -170,6 +176,7 @@ const PricingManager: React.FC = () => {
             minimumUsage: rule.minimumUsage ? String(rule.minimumUsage) : '',
             zoneId: rule.zoneId || '',
             zoneDiscount: rule.zoneDiscount ? String(rule.zoneDiscount) : '',
+            serviceReferenceNumber: rule.serviceReferenceNumber || generateSRN(),
         });
         // Pre-fill location and type if zone is selected
         if (rule.zoneId) {
@@ -255,6 +262,7 @@ const PricingManager: React.FC = () => {
         });
 
         const ruleData = {
+            serviceReferenceNumber: formData.serviceReferenceNumber || generateSRN(),
             description: formData.description,
             serviceIds: formData.serviceIds || [],
             serviceTypeEntries: cleanedServiceTypeEntries,
@@ -508,6 +516,7 @@ const PricingManager: React.FC = () => {
                     <table className="min-w-full text-sm">
                         <thead className="bg-blue-600 sticky top-0 z-10">
                             <tr>
+                                <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">SRN</th>
                                 <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Services</th>
                                 <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">User Group</th>
                                 <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Details</th>
@@ -524,6 +533,7 @@ const PricingManager: React.FC = () => {
                             ) : (
                                 rules.map((rule) => (
                                     <tr key={rule.id} className={rule.status === ApprovalStatus.Pending ? 'bg-yellow-50' : ''}>
+                                        <td className="px-6 py-4 text-gray-700 font-mono font-bold">{rule.serviceReferenceNumber || ''}</td>
                                         <td className="px-6 py-4 text-gray-700">
                                             {rule.serviceTypeEntries && rule.serviceTypeEntries.length > 0 ? (
                                                 <div className="flex flex-col gap-1">

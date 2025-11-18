@@ -6,10 +6,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { logAudit, calculateChanges } from '../services/auditService';
 
 const initialNewProgramState = {
-    name: '',
-    description: '',
-    cityName: '',
-    pointsPerEuro: ''
+  name: '',
+  description: '',
+  cityName: '',
+  pointsPerEuro: '',
+  maxPointsPerUser: '',
+  totalPointsAvailable: '',
+  pointsConsumed: ''
 };
 
 const initialNewBundleState = {
@@ -120,7 +123,15 @@ const LoyaltyManager: React.FC = () => {
   
   const handleOpenProgramModalForEdit = (program: LoyaltyProgram) => {
       setEditingProgram(program);
-      setNewProgram({ name: program.name, description: program.description, cityName: program.cityName || '', pointsPerEuro: String(program.pointsPerEuro) });
+      setNewProgram({
+        name: program.name,
+        description: program.description,
+        cityName: program.cityName || '',
+        pointsPerEuro: String(program.pointsPerEuro),
+        maxPointsPerUser: program.maxPointsPerUser !== undefined ? String(program.maxPointsPerUser) : '',
+        totalPointsAvailable: program.totalPointsAvailable !== undefined ? String(program.totalPointsAvailable) : '',
+        pointsConsumed: program.pointsConsumed !== undefined ? String(program.pointsConsumed) : ''
+      });
       setIsProgramModalOpen(true);
   };
 
@@ -129,51 +140,84 @@ const LoyaltyManager: React.FC = () => {
     setNewProgram(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSaveProgram = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const programData = { name: newProgram.name, description: newProgram.description, cityName: newProgram.cityName, pointsPerEuro: parseInt(newProgram.pointsPerEuro, 10) || 0, lastModifiedBy: 'usr_admin', lastModifiedAt: serverTimestamp() };
-    try {
-        if (editingProgram) {
-            await update(ref(db, `loyaltyPrograms/${editingProgram.id}`), programData);
+    const handleSaveProgram = async (e: React.FormEvent) => {
+      e.preventDefault();
+      const programData: any = {
+        name: newProgram.name,
+        description: newProgram.description,
+        cityName: newProgram.cityName,
+        pointsPerEuro: parseInt(newProgram.pointsPerEuro, 10) || 0,
+        lastModifiedBy: 'usr_admin',
+        lastModifiedAt: serverTimestamp()
+      };
+      if (newProgram.maxPointsPerUser !== '' && !isNaN(parseInt(newProgram.maxPointsPerUser, 10))) {
+        programData.maxPointsPerUser = parseInt(newProgram.maxPointsPerUser, 10);
+      }
+      if (newProgram.totalPointsAvailable !== '' && !isNaN(parseInt(newProgram.totalPointsAvailable, 10))) {
+        programData.totalPointsAvailable = parseInt(newProgram.totalPointsAvailable, 10);
+      }
+      if (newProgram.pointsConsumed !== '' && !isNaN(parseInt(newProgram.pointsConsumed, 10))) {
+        programData.pointsConsumed = parseInt(newProgram.pointsConsumed, 10);
+      }
+      try {
+          if (editingProgram) {
+              await update(ref(db, `loyaltyPrograms/${editingProgram.id}`), programData);
 
-            // Log audit for update
-            if (currentUser) {
-                const changes = calculateChanges(editingProgram, programData);
-                await logAudit({
-                    userId: currentUser.email,
-                    userName: currentUser.name,
-                    userEmail: currentUser.email,
-                    action: 'update',
-                    entityType: 'loyalty',
-                    entityId: editingProgram.id,
-                    entityName: programData.name,
-                    changes,
-                });
-            }
-        } else {
-            const newProgramRef = push(ref(db, 'loyaltyPrograms'));
-            await set(newProgramRef, programData);
+              // Log audit for update
+              if (currentUser) {
+                  const changes = calculateChanges(editingProgram, programData);
+                  await logAudit({
+                      userId: currentUser.email,
+                      userName: currentUser.name,
+                      userEmail: currentUser.email,
+                      action: 'update',
+                      entityType: 'loyalty',
+                      entityId: editingProgram.id,
+                      entityName: programData.name,
+                      changes,
+                  });
+              }
+          } else {
+              const newProgramRef = push(ref(db, 'loyaltyPrograms'));
+              await set(newProgramRef, programData);
 
-            // Log audit for create
-            if (currentUser) {
-                await logAudit({
-                    userId: currentUser.email,
-                    userName: currentUser.name,
-                    userEmail: currentUser.email,
-                    action: 'create',
-                    entityType: 'loyalty',
-                    entityId: newProgramRef.key || '',
-                    entityName: programData.name,
-                });
-            }
-        }
-        setIsProgramModalOpen(false);
-        fetchData();
-    } catch (error) {
-        console.error("Error saving loyalty program:", error);
-        alert("Failed to save loyalty program.");
-    }
-  };
+              // Log audit for create
+              if (currentUser) {
+                  await logAudit({
+                      userId: currentUser.email,
+                      userName: currentUser.name,
+                      userEmail: currentUser.email,
+                      action: 'create',
+                      entityType: 'loyalty',
+                      entityId: newProgramRef.key || '',
+                      entityName: programData.name,
+                      changes: [
+                        {
+                          field: 'maxPointsPerUser',
+                          oldValue: null,
+                          newValue: programData.maxPointsPerUser || null
+                        },
+                        {
+                          field: 'totalPointsAvailable',
+                          oldValue: null,
+                          newValue: programData.totalPointsAvailable || null
+                        },
+                        {
+                          field: 'pointsConsumed',
+                          oldValue: null,
+                          newValue: programData.pointsConsumed || null
+                        }
+                      ]
+                  });
+              }
+          }
+          setIsProgramModalOpen(false);
+          fetchData();
+      } catch (error) {
+          console.error("Error saving loyalty program:", error);
+          alert("Failed to save loyalty program.");
+      }
+    };
   
   const handleDeleteProgram = async (programId: string) => {
       if (window.confirm('Are you sure you want to delete this loyalty program?')) {
@@ -304,6 +348,15 @@ const LoyaltyManager: React.FC = () => {
                         </div>
                         <p className="text-gray-600 mt-2">{program.description}</p>
                         <div className="mt-4"><span className="text-sm font-medium text-gray-500">Points per € spent</span><p className="text-2xl font-bold text-primary-600">{program.pointsPerEuro}</p></div>
+                        {typeof program.maxPointsPerUser !== 'undefined' && (
+                          <div className="mt-2"><span className="text-sm font-medium text-gray-500">Max Points Per User</span><p className="text-lg font-bold text-primary-700">{program.maxPointsPerUser}</p></div>
+                        )}
+                        {typeof program.totalPointsAvailable !== 'undefined' && (
+                          <div className="mt-2"><span className="text-sm font-medium text-gray-500">Total Points Available</span><p className="text-lg font-bold text-primary-700">{program.totalPointsAvailable}</p></div>
+                        )}
+                        {typeof program.pointsConsumed !== 'undefined' && (
+                          <div className="mt-2"><span className="text-sm font-medium text-gray-500">Points Consumed</span><p className="text-lg font-bold text-primary-700">{program.pointsConsumed}</p></div>
+                        )}
                         <div className="text-xs text-gray-400 mt-4">Last modified: {new Date(program.lastModifiedAt).toLocaleString()} by {program.lastModifiedBy}</div>
                     </div>
                     <div className="mt-6 flex justify-end space-x-2"><button onClick={() => handleOpenProgramModalForEdit(program)} className="font-medium text-primary-600 hover:text-primary-900">Edit</button><button onClick={() => handleDeleteProgram(program.id)} className="font-medium text-red-600 hover:text-red-900">Delete</button></div>
@@ -378,6 +431,9 @@ const LoyaltyManager: React.FC = () => {
                       )}
                     </div>
                     <div className="mb-4"><label htmlFor="pointsPerEuro" className="block text-sm font-medium text-gray-700 mb-1">Points Per Euro</label><input type="number" id="pointsPerEuro" name="pointsPerEuro" value={newProgram.pointsPerEuro} onChange={handleProgramInputChange} min="0" step="0.01" className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required /></div>
+                    <div className="mb-4"><label htmlFor="maxPointsPerUser" className="block text-sm font-medium text-gray-700 mb-1">Max Points Per User</label><input type="number" id="maxPointsPerUser" name="maxPointsPerUser" value={newProgram.maxPointsPerUser} onChange={handleProgramInputChange} min="0" step="1" className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <div className="mb-4"><label htmlFor="totalPointsAvailable" className="block text-sm font-medium text-gray-700 mb-1">Total Points Available</label><input type="number" id="totalPointsAvailable" name="totalPointsAvailable" value={newProgram.totalPointsAvailable} onChange={handleProgramInputChange} min="0" step="1" className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
+                    <div className="mb-4"><label htmlFor="pointsConsumed" className="block text-sm font-medium text-gray-700 mb-1">Points Consumed</label><input type="number" id="pointsConsumed" name="pointsConsumed" value={newProgram.pointsConsumed} onChange={handleProgramInputChange} min="0" step="1" className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" /></div>
                     <div className="flex justify-end space-x-4"><button type="button" onClick={() => setIsProgramModalOpen(false)} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Cancel</button><button type="submit" className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">{editingProgram ? 'Save Changes' : 'Save Program'}</button></div>
                 </form>
             </div>

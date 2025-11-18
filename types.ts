@@ -46,6 +46,7 @@ export interface ServiceTypeEntry {
 
 export interface PricingRule {
     id: string;
+    serviceReferenceNumber: string;
     description: string;
     serviceIds: string[]; // Legacy: kept for backward compatibility
     serviceTypeEntries?: ServiceTypeEntry[]; // New: service type + provider + model
@@ -125,6 +126,9 @@ export interface LoyaltyProgram {
     description: string;
     cityName?: string;
     pointsPerEuro: number;
+    maxPointsPerUser?: number;
+    totalPointsAvailable?: number;
+    pointsConsumed?: number;
     status: ApprovalStatus;
     makerName?: string;
     makerEmail?: string;

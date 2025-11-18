@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { ref, onValue, push, update } from 'firebase/database';
+import React, { useState, useEffect, useContext } from 'react';
+import { ref, onValue, push, update, remove } from 'firebase/database';
 import { logAudit } from '../services/auditService';
 import { db } from '../services/firebase';
-import { Campaign, DiscountType } from '../types';
+import { Campaign, DiscountType, Zone } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 const initialNewCampaignState: Partial<Campaign> = {
   name: '',
@@ -23,10 +24,10 @@ const CampaignManager: React.FC = () => {
   const [serviceTypes, setServiceTypes] = useState<{ id: string, name: string }[]>([]);
   const [countries, setCountries] = useState<string[]>([]);
   const [cities, setCities] = useState<{ id: string, name: string, country: string }[]>([]);
+  const [zones, setZones] = useState<Zone[]>([]);
   const [newCampaign, setNewCampaign] = useState<Partial<Campaign>>(initialNewCampaignState);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
-  // TODO: Replace with actual user context
-  const currentUser = { email: 'system', name: 'System User', id: 'system' };
+  const { currentUser } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Fetch reference data for services, countries, cities
@@ -64,6 +65,17 @@ const CampaignManager: React.FC = () => {
         setCities([]);
       }
     });
+    // Zones
+    const zonesRef = ref(db, 'referenceZones');
+    const unsubZones = onValue(zonesRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const arr = Object.entries(data).map(([id, item]: [string, any]) => ({ ...item, id }));
+        setZones(arr);
+      } else {
+        setZones([]);
+      }
+    });
     // Campaigns
     const campaignsRef = ref(db, 'campaigns');
     const unsubCampaigns = onValue(campaignsRef, (snapshot) => {
@@ -79,6 +91,7 @@ const CampaignManager: React.FC = () => {
       unsubService();
       unsubCountry();
       unsubCity();
+      unsubZones();
       unsubCampaigns();
     };
   }, []);
@@ -137,7 +150,13 @@ const CampaignManager: React.FC = () => {
           field: key,
           oldValue: editingCampaign[key],
           newValue: newCampaign[key]
-        }))
+        })).concat(
+          [{
+            field: 'pricingZoneId',
+            oldValue: editingCampaign.pricingZoneId,
+            newValue: newCampaign.pricingZoneId
+          }]
+        )
       });
     } else {
       // Add new campaign to Firebase
@@ -153,7 +172,14 @@ const CampaignManager: React.FC = () => {
         action: 'create',
         entityType: 'campaign',
         entityId: newRef.key || '',
-        entityName: newCampaignData.name
+        entityName: newCampaignData.name,
+        changes: [
+          {
+            field: 'pricingZoneId',
+            oldValue: null,
+            newValue: newCampaignData.pricingZoneId || null
+          }
+        ]
       });
     }
     closeModal();
@@ -177,6 +203,7 @@ const CampaignManager: React.FC = () => {
                   <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Description</th>
                   <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Country</th>
                   <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">City</th>
+                  <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Pricing Zone</th>
                   <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Services</th>
                   <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Qualifying Services</th>
                   <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Discount</th>
@@ -192,6 +219,9 @@ const CampaignManager: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap">{campaign.countryId || '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap">{
                       (cities.find(city => city.id === campaign.cityId)?.name) || '-'
+                    }</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{
+                      (zones.find(zone => zone.id === campaign.pricingZoneId)?.name) || '-'
                     }</td>
                     <td className="px-6 py-4 whitespace-pre-line align-top">{
                       Array.isArray(campaign.serviceIds)
@@ -219,13 +249,32 @@ const CampaignManager: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap">{campaign.startDate} - {campaign.endDate}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <button
-                        className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                        className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 mr-2"
                         onClick={() => {
                           setEditingCampaign(campaign);
                           setNewCampaign(campaign);
                           setIsModalOpen(true);
                         }}
                       >Edit</button>
+                      <button
+                        className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                        onClick={async () => {
+                          if (window.confirm('Are you sure you want to delete this campaign?')) {
+                            const campaignRef = ref(db, `campaigns/${campaign.id}`);
+                            await remove(campaignRef);
+                            setCampaigns(prev => prev.filter(c => c.id !== campaign.id));
+                            await logAudit({
+                              userId: currentUser.id,
+                              userName: currentUser.name,
+                              userEmail: currentUser.email,
+                              action: 'delete',
+                              entityType: 'campaign',
+                              entityId: campaign.id,
+                              entityName: campaign.name
+                            });
+                          }
+                        }}
+                      >Delete</button>
                     </td>
                   </tr>
                 ))}
@@ -300,6 +349,21 @@ const CampaignManager: React.FC = () => {
                   <option value="">Select a country</option>
                   {countries.map(country => (
                     <option key={country} value={country}>{country}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="mb-4">
+                <label htmlFor="pricingZoneId" className="block text-sm font-medium text-gray-700">Pricing Zone</label>
+                <select
+                  name="pricingZoneId"
+                  id="pricingZoneId"
+                  value={newCampaign.pricingZoneId || ''}
+                  onChange={handleInputChange}
+                  className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"
+                >
+                  <option value="">Select a pricing zone</option>
+                  {zones.map(zone => (
+                    <option key={zone.id} value={zone.id}>{zone.name}</option>
                   ))}
                 </select>
               </div>

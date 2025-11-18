@@ -20,9 +20,11 @@ const AuditManager = lazy(() => import('./components/AuditManager'));
 const FXPricingManager = lazy(() => import('./components/FXPricingManager'));
 const UserDiscountGroupManager = lazy(() => import('./components/UserDiscountGroupManager'));
 const FXCampaignManager = lazy(() => import('./components/FXCampaignManager'));
-const FXDiscountOptionManager = lazy(() => import('./components/FXDiscountOptionManager'));
 
-type View = 'dashboard' | 'users' | 'services' | 'pricing' | 'campaigns' | 'loyalty' | 'zones' | 'theme' | 'reference' | 'audit' | 'fxpricing' | 'discountgroups' | 'fxcampaigns' | 'fxdiscountoptions';
+const FXDiscountOptionManager = lazy(() => import('./components/FXDiscountOptionManager'));
+const DataExtractionManager = lazy(() => import('./components/DataExtractionManager'));
+
+type View = 'dashboard' | 'users' | 'services' | 'pricing' | 'campaigns' | 'loyalty' | 'zones' | 'theme' | 'reference' | 'audit' | 'fxpricing' | 'discountgroups' | 'fxcampaigns' | 'fxdiscountoptions' | 'dataextract';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>('dashboard');
@@ -63,6 +65,8 @@ const App: React.FC = () => {
         return <FXCampaignManager />;
       case 'fxdiscountoptions':
         return <FXDiscountOptionManager />;
+      case 'dataextract':
+        return <DataExtractionManager />;
       default:
         return <Dashboard />;
     }

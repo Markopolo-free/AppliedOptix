@@ -76,9 +76,16 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       const data = snapshot.val();
       if (data && data.themes) {
         setThemeLibrary(data);
-        // Set active theme to first theme or default
-        setActiveThemeState(data.themes[0] || defaultTheme);
-        applyThemeToDOM(data.themes[0] || defaultTheme);
+        // Restore theme from localStorage if available
+        const savedThemeName = localStorage.getItem('selectedThemeName');
+        const found = savedThemeName ? data.themes.find((t: any) => t.themeName === savedThemeName) : null;
+        if (found) {
+          setActiveThemeState(found);
+          applyThemeToDOM(found);
+        } else {
+          setActiveThemeState(data.themes[0] || defaultTheme);
+          applyThemeToDOM(data.themes[0] || defaultTheme);
+        }
       } else {
         setThemeLibrary(defaultLibrary);
         setActiveThemeState(defaultTheme);
@@ -110,6 +117,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (found) {
       setActiveThemeState(found);
       applyThemeToDOM(found);
+      localStorage.setItem('selectedThemeName', themeName);
     }
   };
 
