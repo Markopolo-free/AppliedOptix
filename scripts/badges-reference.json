@@ -1,0 +1,56 @@
+[
+  {
+    "id": "badge-santa",
+    "name": "Santa Claus",
+    "description": "Red and white Santa face for Christmas offers.",
+    "iconUrl": "https://www.pngall.com/wp-content/uploads/5/Santa-Claus-PNG-Image.png"
+  },
+  {
+    "id": "badge-snowflake",
+    "name": "Snowflake",
+    "description": "Blue or white snowflake for winter-themed loyalty programs.",
+    "iconUrl": "https://www.pngall.com/wp-content/uploads/4/Snowflake-PNG-File.png"
+  },
+  {
+    "id": "badge-sun",
+    "name": "Sun",
+    "description": "Bright yellow sun for summer rewards.",
+    "iconUrl": "https://www.pngall.com/wp-content/uploads/4/Sun-PNG-Image.png"
+  },
+  {
+    "id": "badge-pumpkin",
+    "name": "Pumpkin",
+    "description": "Orange pumpkin for Halloween campaigns.",
+    "iconUrl": "https://www.pngall.com/wp-content/uploads/4/Pumpkin-PNG-Image.png"
+  },
+  {
+    "id": "badge-heart",
+    "name": "Heart",
+    "description": "Red or pink heart for Valentine’s Day offers.",
+    "iconUrl": "https://www.pngall.com/wp-content/uploads/4/Heart-PNG-File.png"
+  },
+  {
+    "id": "badge-trophy",
+    "name": "Top Performer",
+    "description": "Gold trophy for achievement-based rewards.",
+    "iconUrl": "https://www.pngall.com/wp-content/uploads/4/Trophy-PNG-File.png"
+  },
+  {
+    "id": "badge-leaf",
+    "name": "Eco-Friendly",
+    "description": "Green leaf for eco-friendly initiatives.",
+    "iconUrl": "https://www.pngall.com/wp-content/uploads/4/Leaf-PNG-File.png"
+  },
+  {
+    "id": "badge-ticket",
+    "name": "Event Attendee",
+    "description": "Colorful ticket for event participation.",
+    "iconUrl": "https://www.pngall.com/wp-content/uploads/4/Ticket-PNG-File.png"
+  },
+  {
+    "id": "badge-star",
+    "name": "Survey Star",
+    "description": "Gold star for survey completion and feedback.",
+    "iconUrl": "https://www.pngall.com/wp-content/uploads/4/Star-PNG-File.png"
+  }
+]

@@ -139,9 +139,9 @@ const CampaignManager: React.FC = () => {
       setCampaigns(prev => prev.map(c => c.id === editingCampaign.id ? updatedCampaign as Campaign : c));
       // Audit log for update
       await logAudit({
-        userId: currentUser.id,
-        userName: currentUser.name,
-        userEmail: currentUser.email,
+        userId: currentUser?.id || currentUser?.email || 'admin',
+        userName: currentUser?.name || 'Admin',
+        userEmail: currentUser?.email || 'admin',
         action: 'update',
         entityType: 'campaign',
         entityId: editingCampaign.id,
@@ -166,9 +166,9 @@ const CampaignManager: React.FC = () => {
       setCampaigns(prev => [...prev, { ...newCampaignData, id: newRef.key } as Campaign]);
       // Audit log for create
       await logAudit({
-        userId: currentUser.id,
-        userName: currentUser.name,
-        userEmail: currentUser.email,
+        userId: currentUser?.id || currentUser?.email || 'admin',
+        userName: currentUser?.name || 'Admin',
+        userEmail: currentUser?.email || 'admin',
         action: 'create',
         entityType: 'campaign',
         entityId: newRef.key || '',
@@ -264,9 +264,9 @@ const CampaignManager: React.FC = () => {
                             await remove(campaignRef);
                             setCampaigns(prev => prev.filter(c => c.id !== campaign.id));
                             await logAudit({
-                              userId: currentUser.id,
-                              userName: currentUser.name,
-                              userEmail: currentUser.email,
+                              userId: currentUser?.id || currentUser?.email || 'admin',
+                              userName: currentUser?.name || 'Admin',
+                              userEmail: currentUser?.email || 'admin',
                               action: 'delete',
                               entityType: 'campaign',
                               entityId: campaign.id,

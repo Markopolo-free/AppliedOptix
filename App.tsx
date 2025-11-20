@@ -23,8 +23,9 @@ const FXCampaignManager = lazy(() => import('./components/FXCampaignManager'));
 
 const FXDiscountOptionManager = lazy(() => import('./components/FXDiscountOptionManager'));
 const DataExtractionManager = lazy(() => import('./components/DataExtractionManager'));
+const BundledPricingManager = lazy(() => import('./components/BundledPricingManager'));
 
-type View = 'dashboard' | 'users' | 'services' | 'pricing' | 'campaigns' | 'loyalty' | 'zones' | 'theme' | 'reference' | 'audit' | 'fxpricing' | 'discountgroups' | 'fxcampaigns' | 'fxdiscountoptions' | 'dataextract';
+type View = 'dashboard' | 'users' | 'services' | 'pricing' | 'campaigns' | 'loyalty' | 'bundledpricing' | 'zones' | 'theme' | 'reference' | 'audit' | 'fxpricing' | 'discountgroups' | 'fxcampaigns' | 'fxdiscountoptions' | 'dataextract';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>('dashboard');
@@ -38,37 +39,39 @@ const App: React.FC = () => {
   const renderView = () => {
     switch (currentView) {
       case 'dashboard':
-        return <Dashboard />;
+        return <><Dashboard /></>;
       case 'users':
-        return <UserManager />;
+        return <><UserManager /></>;
       case 'services':
-        return <ServiceManager />;
+        return <><ServiceManager /></>;
       case 'pricing':
-        return <PricingManager />;
+        return <><PricingManager /></>;
       case 'zones':
-        return <ZoneManager />;
+        return <><ZoneManager /></>;
       case 'campaigns':
-        return <CampaignManager />;
+        return <><CampaignManager /></>;
       case 'loyalty':
-        return <LoyaltyManager />;
+        return <><LoyaltyManager /></>;
       case 'theme':
-        return <ThemeConfigurator />;
+        return <><ThemeConfigurator /></>;
       case 'reference':
-        return <ReferenceDataManager />;
+        return <><ReferenceDataManager /></>;
       case 'audit':
-        return <AuditManager />;
+        return <><AuditManager /></>;
       case 'fxpricing':
-        return <FXPricingManager />;
+        return <><FXPricingManager /></>;
       case 'discountgroups':
-        return <UserDiscountGroupManager />;
+        return <><UserDiscountGroupManager /></>;
       case 'fxcampaigns':
-        return <FXCampaignManager />;
+        return <><FXCampaignManager /></>;
       case 'fxdiscountoptions':
-        return <FXDiscountOptionManager />;
+        return <><FXDiscountOptionManager /></>;
       case 'dataextract':
-        return <DataExtractionManager />;
+        return <><DataExtractionManager /></>;
+      case 'bundledpricing':
+        return <><BundledPricingManager /></>;
       default:
-        return <Dashboard />;
+        return <><Dashboard /></>;
     }
   };
 

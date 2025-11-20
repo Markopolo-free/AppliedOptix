@@ -5,6 +5,7 @@ import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { UserRole } from '../types';
 
 interface AuthUser {
+  id: string;
   email: string;
   name: string;
   role: UserRole;

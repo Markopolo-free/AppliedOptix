@@ -10,6 +10,9 @@ const DATA_SOURCES = [
   { key: 'loyaltyPoints', label: 'Loyalty Management Points' },
   { key: 'loyaltyBundles', label: 'Loyalty Management Bundled Pricing' },
   { key: 'userDiscountGroups', label: 'User Discount Groups' },
+  { key: 'fxcampaigns', label: 'FX Campaigns' },
+  { key: 'fxdiscountoptions', label: 'FX Discount Groups' },
+  { key: 'fxpricing', label: 'FX Pricing' },
 ];
 
 // Moved extract selection dropdown to appear before the Select Fields to Extract step
@@ -19,9 +22,21 @@ const DataExtractionManager: React.FC = () => {
   const [selectedSource, setSelectedSource] = useState<string>('');
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [extracts, setExtracts] = useState<any[]>([]);
-  const [selectedExtractIdx, setSelectedExtractIdx] = useState<number | null>(null);
+  const [selectedExtractIdx, setSelectedExtractIdx] = useState<string | null>(null);
   const [newExtractId, setNewExtractId] = useState<string | null>(null);
   const [extractName, setExtractName] = useState('');
+  // Fix: orderedFields state for step 4 (existing extracts)
+  const [orderedFields, setOrderedFields] = useState<string[]>([]);
+  // Update orderedFields when selectedExtract changes
+  React.useEffect(() => {
+    const selectedExtract =
+      newExtractId
+        ? extracts.find(e => e.id === newExtractId)
+        : selectedExtractIdx !== null
+          ? extracts.find(e => e.id === selectedExtractIdx)
+          : null;
+    setOrderedFields(selectedExtract?.fields || []);
+  }, [newExtractId, selectedExtractIdx, extracts]);
 
 
   // Load extracts from Firebase on mount
@@ -56,6 +71,35 @@ const DataExtractionManager: React.FC = () => {
     userDiscountGroups: [
       'id', 'name', 'serviceIds', 'discountType', 'discountValue', 'capType', 'capValue', 'capPeriod', 'effectiveDate', 'expiryDate', 'lastModifiedBy', 'lastModifiedAt'
     ],
+    fxcampaigns: [
+      'id', 'name', 'description', 'startDate', 'endDate', 'currency', 'rate', 'status', 'makerName', 'makerEmail', 'makerTimestamp', 'checkerName', 'checkerEmail', 'checkerTimestamp', 'lastModifiedBy', 'lastModifiedAt'
+    ],
+    fxdiscountoptions: [
+      'id', 'optionNumber', 'name', 'description', 'discountType', 'discountAmountType', 'discountAmount', 'serviceItem', 'fxSegment', 'maxCapType', 'currency', 'capPeriodStart', 'capPeriodEnd', 'startDate', 'endDate', 'lastModifiedBy', 'lastModifiedAt'
+    ],
+    fxpricing: [
+      'id',
+      'referenceNumber',
+      'entity',
+      'country',
+      'baseCurrency',
+      'quoteCurrency',
+      'segment',
+      'channel',
+      'loyaltyStatus',
+      'tiers',
+      'activeFromDate',
+      'activeToDate',
+      'status',
+      'makerName',
+      'makerEmail',
+      'makerTimestamp',
+      'checkerName',
+      'checkerEmail',
+      'checkerTimestamp',
+      'lastModifiedBy',
+      'lastModifiedAt'
+    ],
   };
 
   // Helper to fetch data for a source from Firebase
@@ -68,7 +112,6 @@ const DataExtractionManager: React.FC = () => {
       case 'campaigns':
         path = 'campaigns';
         break;
-              <label className="block mb-2 font-semibold">Load Previous Extract</label>
       case 'loyaltyPoints':
         path = 'loyaltyPrograms';
         break;
@@ -78,13 +121,30 @@ const DataExtractionManager: React.FC = () => {
       case 'userDiscountGroups':
         path = 'userDiscountGroups';
         break;
+      case 'fxcampaigns':
+        path = 'fxCampaigns';
+        break;
+      case 'fxdiscountoptions':
+        path = 'fxDiscountOptions';
+        break;
+      case 'fxpricing':
+        path = 'fxPricings';
+        break;
       default:
+        console.log('[Extract Debug] Unknown source:', source);
         return [];
     }
+    console.log('[Extract Debug] Fetching data from path:', path);
     const snapshot = await get(ref(db, path));
-    if (!snapshot.exists()) return [];
+    if (!snapshot.exists()) {
+      console.log('[Extract Debug] No data found at path:', path);
+      return [];
+    }
     const data = snapshot.val();
-    return Object.keys(data).map(key => ({ id: key, ...data[key] }));
+    console.log('[Extract Debug] Raw data:', data);
+    const result = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+    console.log('[Extract Debug] Parsed result:', result);
+    return result;
   };
 
   // Helper to create CSV from array of objects and selected fields
@@ -130,19 +190,21 @@ const DataExtractionManager: React.FC = () => {
               className="mb-6 px-3 py-2 border rounded w-full"
               value={selectedExtractIdx ?? ''}
               onChange={e => {
-                const idx = e.target.value === '' ? null : Number(e.target.value);
-                setSelectedExtractIdx(idx);
-                if (idx !== null) {
-                  const ex = extracts[idx];
-                  setSelectedSource(ex.source);
-                  setSelectedFields(ex.fields);
-                  setStep(4);
+                const id = e.target.value === '' ? null : e.target.value;
+                setSelectedExtractIdx(id);
+                if (id !== null) {
+                  const ex = extracts.find(extract => extract.id === id);
+                  if (ex) {
+                    setSelectedSource(ex.source);
+                    setSelectedFields(ex.fields);
+                    setStep(4);
+                  }
                 }
               }}
             >
               <option value="">-- Choose an extract --</option>
-              {extracts.map((ex, idx) => (
-                <option key={idx} value={idx}>{typeof ex.name === 'string' ? ex.name : `Extract ${idx + 1}`}</option>
+              {extracts.map((ex) => (
+                <option key={ex.id} value={ex.id}>{typeof ex.name === 'string' ? ex.name : `Extract`}</option>
               ))}
             </select>
           </div>
@@ -150,8 +212,8 @@ const DataExtractionManager: React.FC = () => {
       case 2:
         return (
           <div>
-            <h2 className="text-xl font-bold mb-4">Select Fields to Extract</h2>
-            <div className="grid grid-cols-2 gap-4">
+            <h2 className="text-xl font-bold mb-4">Select & Order Fields to Extract</h2>
+            <div className="grid grid-cols-2 gap-4 mb-6">
               {FIELD_OPTIONS[selectedSource]?.map(field => (
                 <label key={field} className="flex items-center">
                   <input
@@ -169,6 +231,40 @@ const DataExtractionManager: React.FC = () => {
                 </label>
               ))}
             </div>
+            {selectedFields.length > 0 && (
+              <div className="mb-6">
+                <h3 className="font-semibold mb-2">Order Selected Fields</h3>
+                <ul className="list-none p-0">
+                  {selectedFields.map((field, idx) => (
+                    <li key={field} className="flex items-center mb-2">
+                      <span className="flex-1">{field}</span>
+                      <button
+                        className="px-2 py-1 bg-gray-200 rounded mr-2"
+                        disabled={idx === 0}
+                        onClick={() => {
+                          setSelectedFields(prev => {
+                            const arr = [...prev];
+                            [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+                            return arr;
+                          });
+                        }}
+                      >↑</button>
+                      <button
+                        className="px-2 py-1 bg-gray-200 rounded"
+                        disabled={idx === selectedFields.length - 1}
+                        onClick={() => {
+                          setSelectedFields(prev => {
+                            const arr = [...prev];
+                            [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
+                            return arr;
+                          });
+                        }}
+                      >↓</button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="mt-6 flex justify-between">
               <button className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg" onClick={() => setStep(1)}>Back</button>
               <button
@@ -198,6 +294,8 @@ const DataExtractionManager: React.FC = () => {
                 className="px-4 py-2 bg-green-600 text-white rounded-lg"
                 disabled={!extractName}
                  onClick={async () => {
+                   alert('Run Extract button clicked!');
+                   console.log('[Extract Debug] Run Extract button clicked!');
                    // Fetch actual data and save extract
                    const data = await fetchData(selectedSource);
                    // Save new extract to Firebase
@@ -241,8 +339,52 @@ const DataExtractionManager: React.FC = () => {
           newExtractId
             ? extracts.find(e => e.id === newExtractId)
             : selectedExtractIdx !== null
-              ? extracts[selectedExtractIdx]
+              ? extracts.find(e => e.id === selectedExtractIdx)
               : null;
+        // Helper for async extract deletion
+        const handleDeleteExtract = async () => {
+          if (selectedExtract && selectedExtract.id) {
+            await remove(ref(db, `dataExtracts/${selectedExtract.id}`));
+          }
+          setSelectedExtractIdx(null);
+          setNewExtractId(null);
+        };
+        // Helper for re-running extract
+        const handleRerunExtract = async () => {
+          if (!selectedExtract) return;
+          alert('Re-Run Extract button clicked!');
+          console.log('[Extract Debug] Re-Run Extract button clicked!');
+          const data = await fetchData(selectedExtract.source);
+          // Update the extract with new data and date
+          await push(ref(db, 'dataExtracts'), {
+            name: selectedExtract.name,
+            source: selectedExtract.source,
+            fields: selectedExtract.fields,
+            date: new Date().toISOString(),
+            data
+          });
+          // Optionally, log audit for re-run
+          if (currentUser) {
+            await logAudit({
+              userId: currentUser.email,
+              userName: currentUser.name,
+              userEmail: currentUser.email,
+              action: 'create',
+              entityType: 'reference',
+              entityName: selectedExtract.name,
+              changes: [
+                { field: 'Data Extract Re-Run', oldValue: null, newValue: selectedExtract.name }
+              ],
+              metadata: {
+                source: selectedExtract.source,
+                fields: selectedExtract.fields,
+                runDate: new Date().toISOString()
+              }
+            });
+          }
+          // Refresh extracts list
+          setNewExtractId(null);
+        };
         return (
           <div>
             <h2 className="text-xl font-bold mb-4">Extracts</h2>
@@ -251,24 +393,53 @@ const DataExtractionManager: React.FC = () => {
               className="mb-6 px-3 py-2 border rounded w-full"
               value={selectedExtractIdx ?? ''}
               onChange={e => {
-                setSelectedExtractIdx(e.target.value === '' ? null : Number(e.target.value));
+                setSelectedExtractIdx(e.target.value === '' ? null : e.target.value);
                 setNewExtractId(null);
               }}
             >
               <option value="">-- Choose an extract --</option>
-              {extracts.map((ex, idx) => (
-                <option key={ex.id || idx} value={idx}>{typeof ex.name === 'string' ? ex.name : `Extract ${idx + 1}`}</option>
+              {extracts.map((ex) => (
+                <option key={ex.id} value={ex.id}>{typeof ex.name === 'string' ? ex.name : `Extract`}</option>
               ))}
             </select>
             {selectedExtract && (
               <div className="mb-6 p-4 border rounded bg-gray-50">
                 <div className="mb-2"><strong>Name:</strong> {selectedExtract.name}</div>
                 <div className="mb-2"><strong>Source:</strong> {DATA_SOURCES.find(s => s.key === selectedExtract.source)?.label}</div>
-                <div className="mb-2"><strong>Fields:</strong> {selectedExtract.fields.join(', ')}</div>
                 <div className="mb-2"><strong>Date:</strong> {new Date(selectedExtract.date).toLocaleString()}</div>
+                <div className="mb-2"><strong>Fields:</strong></div>
+                <ul className="list-none p-0 mb-2">
+                  {orderedFields.map((field, idx) => (
+                    <li key={field} className="flex items-center mb-1">
+                      <span className="flex-1">{field}</span>
+                      <button
+                        className="px-2 py-1 bg-gray-200 rounded mr-2"
+                        disabled={idx === 0}
+                        onClick={() => {
+                          setOrderedFields(prev => {
+                            const arr = [...prev];
+                            [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+                            return arr;
+                          });
+                        }}
+                      >↑</button>
+                      <button
+                        className="px-2 py-1 bg-gray-200 rounded"
+                        disabled={idx === orderedFields.length - 1}
+                        onClick={() => {
+                          setOrderedFields(prev => {
+                            const arr = [...prev];
+                            [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
+                            return arr;
+                          });
+                        }}
+                      >↓</button>
+                    </li>
+                  ))}
+                </ul>
                 <div className="flex gap-2 mt-2">
                   <button className="px-2 py-1 bg-green-600 text-white rounded" onClick={() => {
-                    const csv = createCSV(selectedExtract.data ?? [], selectedExtract.fields);
+                    const csv = createCSV(selectedExtract.data ?? [], orderedFields);
                     const blob = new Blob([csv], { type: 'text/csv' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
@@ -277,14 +448,8 @@ const DataExtractionManager: React.FC = () => {
                     a.click();
                     URL.revokeObjectURL(url);
                   }}>Download CSV</button>
-                  <button className="px-2 py-1 bg-red-500 text-white rounded" onClick={async () => {
-                    // Delete extract from Firebase
-                    if (selectedExtract && selectedExtract.id) {
-                      await remove(ref(db, `dataExtracts/${selectedExtract.id}`));
-                    }
-                    setSelectedExtractIdx(null);
-                    setNewExtractId(null);
-                  }}>Delete</button>
+                  <button className="px-2 py-1 bg-blue-500 text-white rounded" onClick={handleRerunExtract}>Re-Run Extract</button>
+                  <button className="px-2 py-1 bg-red-500 text-white rounded" onClick={handleDeleteExtract}>Delete</button>
                 </div>
               </div>
             )}
@@ -298,8 +463,8 @@ const DataExtractionManager: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {extracts.map((ex, idx) => (
-                  <tr key={idx}>
+                {extracts.map((ex) => (
+                  <tr key={ex.id}>
                     <td className="px-4 py-2 font-semibold">{typeof ex.name === 'string' ? ex.name : ''}</td>
                     <td className="px-4 py-2">{DATA_SOURCES.find(s => s.key === ex.source)?.label}</td>
                     <td className="px-4 py-2">{ex.fields.join(', ')}</td>

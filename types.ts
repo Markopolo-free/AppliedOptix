@@ -1,3 +1,9 @@
+export interface Badge {
+    id: string;
+    name: string;
+    description: string;
+    iconUrl?: string;
+}
 import { UserRole, ServiceStatus, PricingBasis, UserGroup, DiscountType, ZoneType, ApprovalStatus } from './enums';
 
 export interface User {
@@ -129,11 +135,13 @@ export interface LoyaltyProgram {
     maxPointsPerUser?: number;
     totalPointsAvailable?: number;
     pointsConsumed?: number;
+    startDate?: string;
+    endDate?: string;
+    triggerEvent?: string;
     status: ApprovalStatus;
     makerName?: string;
     makerEmail?: string;
     makerTimestamp?: string;
-    checkerName?: string;
     checkerEmail?: string;
     checkerTimestamp?: string;
     lastModifiedBy: string;

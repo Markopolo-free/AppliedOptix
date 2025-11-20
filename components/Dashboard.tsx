@@ -63,11 +63,7 @@ const Dashboard: React.FC = () => {
       const fxCampaignsCount = fxCampaignsSnap.exists() ? Object.keys(fxCampaignsSnap.val()).length : 0;
       const fxDiscountGroupsCount = fxDiscountGroupsSnap.exists() ? Object.keys(fxDiscountGroupsSnap.val()).length : 0;
       const userDiscountGroupsCount = userDiscountGroupsSnap.exists() ? Object.keys(userDiscountGroupsSnap.val()).length : 0;
-      
-      // Count loyalty programs (Points Programs)
-      const pointsProgramsCount = loyaltyProgramsSnap.exists() ? Object.keys(loyaltyProgramsSnap.val()).length : 0;
-      
-      // Count bundles (Bundled Pricing)
+      const loyaltyProgramsCount = loyaltyProgramsSnap.exists() ? Object.keys(loyaltyProgramsSnap.val()).length : 0;
       const bundledPricingCount = bundlesSnap.exists() ? Object.keys(bundlesSnap.val()).length : 0;
 
       console.log('Dashboard Counts:', {
@@ -78,7 +74,7 @@ const Dashboard: React.FC = () => {
         campaignsCount,
         fxCampaignsCount,
         fxDiscountGroupsCount,
-        pointsProgramsCount,
+        loyaltyProgramsCount,
         bundledPricingCount,
         userDiscountGroupsCount
       });
@@ -91,7 +87,7 @@ const Dashboard: React.FC = () => {
         { label: 'Campaigns', count: campaignsCount, color: 'text-orange-600' },
         { label: 'FX Campaigns', count: fxCampaignsCount, color: 'text-pink-600' },
         { label: 'FX Discount Groups', count: fxDiscountGroupsCount, color: 'text-red-600' },
-        { label: 'Points Programs', count: pointsProgramsCount, color: 'text-teal-600' },
+        { label: 'Loyalty Programs', count: loyaltyProgramsCount, color: 'text-teal-600' },
         { label: 'Bundled Pricing', count: bundledPricingCount, color: 'text-cyan-600' },
         { label: 'User Discount Groups', count: userDiscountGroupsCount, color: 'text-amber-600' },
       ];
@@ -124,7 +120,7 @@ const Dashboard: React.FC = () => {
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {entityCounts.map((entity, index) => (
               <StatCard 
-                key={index}
+                key={entity.label}
                 title={entity.label}
                 value={entity.count}
                 color={entity.color}

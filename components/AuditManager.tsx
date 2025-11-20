@@ -220,50 +220,48 @@ const AuditManager: React.FC = () => {
   }
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">Audit Log</h1>
+    <div className="max-w-screen-xl mx-auto px-2 py-4">
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4 gap-2">
+        <h1 className="text-2xl font-bold text-gray-800">Audit Log</h1>
         <button
           onClick={exportToCSV}
-          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
         >
           📊 Export to CSV
         </button>
       </div>
 
       {/* Filters Section */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-        <h2 className="text-lg font-semibold mb-4">Filters</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="bg-white rounded-lg shadow-md p-4 mb-4">
+        <h2 className="text-lg font-semibold mb-2">Filters</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
           {/* Date From */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Date From</label>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Date From</label>
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
-
           {/* Date To */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Date To</label>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Date To</label>
             <input
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
-
           {/* User Filter */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">User</label>
+            <label className="block text-xs font-medium text-gray-700 mb-1">User</label>
             <select
               value={selectedUser}
               onChange={(e) => setSelectedUser(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="">All Users</option>
               {uniqueUsers.map(user => (
@@ -273,14 +271,13 @@ const AuditManager: React.FC = () => {
               ))}
             </select>
           </div>
-
           {/* Entity Type Filter */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Entity Type</label>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Entity Type</label>
             <select
               value={selectedEntity}
               onChange={(e) => setSelectedEntity(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="">All Types</option>
               {entityTypes.map(type => (
@@ -290,14 +287,13 @@ const AuditManager: React.FC = () => {
               ))}
             </select>
           </div>
-
           {/* Action Filter */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Action</label>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Action</label>
             <select
               value={selectedAction}
               onChange={(e) => setSelectedAction(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="">All Actions</option>
               {actionTypes.map(action => (
@@ -307,143 +303,86 @@ const AuditManager: React.FC = () => {
               ))}
             </select>
           </div>
-
           {/* Search */}
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+          <div className="lg:col-span-2">
+            <label className="block text-xs font-medium text-gray-700 mb-1">Search</label>
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by entity name, user name, or email..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
-
           {/* Clear Filters Button */}
           <div className="flex items-end">
             <button
               onClick={clearFilters}
-              className="w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
+              className="w-full px-2 py-1 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
             >
               Clear Filters
             </button>
           </div>
         </div>
-        <div className="mt-4 text-sm text-gray-600">
+        <div className="mt-2 text-xs text-gray-600">
           Showing {filteredLogs.length} of {auditLogs.length} entries
         </div>
       </div>
 
       {/* Audit Log Table */}
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <div className="overflow-x-auto max-h-[calc(100vh-200px)] overflow-y-auto">
-          <table className="min-w-full">
+        <div className="overflow-x-auto max-h-[calc(100vh-250px)] overflow-y-auto">
+          <table className="min-w-full text-xs">
             <thead className="bg-blue-600 sticky top-0 z-10">
               <tr>
-                <th
-                  className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-blue-700 border-b-2 border-blue-700"
-                  onClick={() => handleSort('timestamp')}
-                >
-                  <div className="flex items-center">
-                    Timestamp
-                    {sortField === 'timestamp' && (
-                      <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                    )}
-                  </div>
+                <th className="px-3 py-2 text-left font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-blue-700 border-b-2 border-blue-700" onClick={() => handleSort('timestamp')}>
+                  <div className="flex items-center">Timestamp{sortField === 'timestamp' && (<span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>)}</div>
                 </th>
-                <th
-                  className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-blue-700 border-b-2 border-blue-700"
-                  onClick={() => handleSort('userName')}
-                >
-                  <div className="flex items-center">
-                    User
-                    {sortField === 'userName' && (
-                      <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                    )}
-                  </div>
+                <th className="px-3 py-2 text-left font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-blue-700 border-b-2 border-blue-700" onClick={() => handleSort('userName')}>
+                  <div className="flex items-center">User{sortField === 'userName' && (<span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>)}</div>
                 </th>
-                <th
-                  className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-blue-700 border-b-2 border-blue-700"
-                  onClick={() => handleSort('action')}
-                >
-                  <div className="flex items-center">
-                    Action
-                    {sortField === 'action' && (
-                      <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                    )}
-                  </div>
+                <th className="px-3 py-2 text-left font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-blue-700 border-b-2 border-blue-700" onClick={() => handleSort('action')}>
+                  <div className="flex items-center">Action{sortField === 'action' && (<span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>)}</div>
                 </th>
-                <th
-                  className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-blue-700 border-b-2 border-blue-700"
-                  onClick={() => handleSort('entityType')}
-                >
-                  <div className="flex items-center">
-                    Entity Type
-                    {sortField === 'entityType' && (
-                      <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                    )}
-                  </div>
+                <th className="px-3 py-2 text-left font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-blue-700 border-b-2 border-blue-700" onClick={() => handleSort('entityType')}>
+                  <div className="flex items-center">Entity Type{sortField === 'entityType' && (<span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>)}</div>
                 </th>
-                <th
-                  className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-blue-700 border-b-2 border-blue-700"
-                  onClick={() => handleSort('entityName')}
-                >
-                  <div className="flex items-center">
-                    Entity Name
-                    {sortField === 'entityName' && (
-                      <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
-                    )}
-                  </div>
+                <th className="px-3 py-2 text-left font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-blue-700 border-b-2 border-blue-700" onClick={() => handleSort('entityName')}>
+                  <div className="flex items-center">Entity Name{sortField === 'entityName' && (<span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>)}</div>
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">
-                  Changes
-                </th>
+                <th className="px-3 py-2 text-left font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Changes</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                    No audit logs found
-                  </td>
+                  <td colSpan={6} className="px-3 py-8 text-center text-gray-500">No audit logs found</td>
                 </tr>
               ) : (
                 filteredLogs.map((log) => (
                   <tr key={log.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatTimestamp(log.timestamp)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-3 py-2 whitespace-nowrap">{formatTimestamp(log.timestamp)}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">
                       <div>{log.userName}</div>
                       <div className="text-xs text-gray-500">{log.userEmail}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getActionColor(log.action)}`}>
-                        {log.action}
-                      </span>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getActionColor(log.action)}`}>{log.action}</span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {log.entityType}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {log.entityName || '-'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
+                    <td className="px-3 py-2 whitespace-nowrap">{log.entityType}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{log.entityName || '-'}</td>
+                    <td className="px-3 py-2">
                       {log.changes && log.changes.length > 0 ? (
-                        <div className="max-w-md">
+                        <div className="max-w-xs">
                           {log.changes.map((change, idx) => (
                             <div key={idx} className="text-xs mb-1">
                               <span className="font-medium">{change.field}:</span>{' '}
-                              <span className="text-red-600">{JSON.stringify(change.oldValue)}</span>
-                              {' → '}
+                              <span className="text-red-600">{JSON.stringify(change.oldValue)}</span>{' → '}
                               <span className="text-green-600">{JSON.stringify(change.newValue)}</span>
                             </div>
                           ))}
                         </div>
-                      ) : (
-                        '-'
-                      )}
+                      ) : ('-')}
                     </td>
                   </tr>
                 ))

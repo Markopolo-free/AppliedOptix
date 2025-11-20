@@ -18,7 +18,7 @@ interface City {
 
 
 // --- Multi-category ReferenceDataManager ---
-type CategoryType = 'countries' | 'currencies' | 'fxSegments' | 'serviceTypes' | 'zoneTypes' | 'zones' | 'cities' | 'weatherConditions';
+type CategoryType = 'countries' | 'currencies' | 'fxSegments' | 'serviceTypes' | 'zoneTypes' | 'zones' | 'cities' | 'weatherConditions' | 'loyaltyTriggerEvents' | 'badges';
 
 
 interface ReferenceItem {
@@ -29,7 +29,9 @@ interface ReferenceItem {
   population?: number;
   dateAdded?: string;
   addedBy?: string;
-  // Add other fields as needed for each category
+  // For loyaltyTriggerEvents
+  value?: string;
+  label?: string;
 }
 
 const ReferenceDataManager: React.FC = () => {
@@ -55,7 +57,7 @@ const ReferenceDataManager: React.FC = () => {
   };
   const { currentUser } = useAuth();
   const [category, setCategory] = useState<CategoryType>('countries');
-  const [items, setItems] = useState<ReferenceItem[]>([]);
+  const [items, setItems] = useState<ReferenceItem[]>([]); // Removed badges reference
   const [formData, setFormData] = useState<ReferenceItem>({ id: '', name: '', description: '', iconUrl: '' });
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -64,32 +66,16 @@ const ReferenceDataManager: React.FC = () => {
     const db = getDatabase();
     let refPath = '';
     switch (category) {
-      case 'countries':
-        refPath = 'referenceCountries';
-        break;
-      case 'currencies':
-        refPath = 'referenceCurrencies';
-        break;
-      case 'fxSegments':
-        refPath = 'referenceFXSegments';
-        break;
-      case 'serviceTypes':
-        refPath = 'referenceServiceTypes';
-        break;
-      case 'zoneTypes':
-        refPath = 'referenceZoneTypes';
-        break;
-      case 'zones':
-        refPath = 'referenceZones';
-        break;
-      case 'cities':
-        refPath = 'referenceCities';
-        break;
-      case 'weatherConditions':
-        refPath = 'referenceWeatherConditions';
-        break;
-      default:
-        refPath = '';
+      case 'countries': refPath = 'referenceCountries'; break;
+      case 'currencies': refPath = 'referenceCurrencies'; break;
+      case 'fxSegments': refPath = 'referenceFXSegments'; break;
+      case 'serviceTypes': refPath = 'referenceServiceTypes'; break;
+      case 'zoneTypes': refPath = 'referenceZoneTypes'; break;
+      case 'zones': refPath = 'referenceZones'; break;
+      case 'cities': refPath = 'referenceCities'; break;
+      case 'weatherConditions': refPath = 'referenceWeatherConditions'; break;
+      case 'loyaltyTriggerEvents': refPath = 'loyaltyTriggerEvents'; break; // Removed badges reference
+      default: refPath = '';
     }
     if (!refPath) {
       setItems([]);
@@ -116,6 +102,7 @@ const ReferenceDataManager: React.FC = () => {
       case 'zones': base = 'referenceZones'; break;
       case 'cities': base = 'referenceCities'; break;
       case 'weatherConditions': base = 'referenceWeatherConditions'; break;
+      case 'loyaltyTriggerEvents': base = 'loyaltyTriggerEvents'; break;
       default: base = ''; break;
     }
     return id ? `${base}/${id}` : base;
@@ -126,13 +113,23 @@ const ReferenceDataManager: React.FC = () => {
     const refPath = getRefPath(category);
     if (!refPath) return;
     const dbRef = ref(db, refPath);
-    push(dbRef, formData);
-    setFormData({ id: '', name: '', description: '', iconUrl: '' });
+    if (category === 'loyaltyTriggerEvents') {
+      // Only push value and label for trigger events
+      push(dbRef, { value: formData.value || '', label: formData.label || '' });
+      setFormData({ id: '', value: '', label: '' });
+    } else {
+      push(dbRef, formData);
+      setFormData({ id: '', name: '', description: '', iconUrl: '' });
+    }
   };
 
   const handleEdit = (item: ReferenceItem) => {
     setEditingId(item.id);
-    setFormData(item);
+    if (category === 'loyaltyTriggerEvents') {
+      setFormData({ id: item.id, value: item.value || '', label: item.label || '' });
+    } else {
+      setFormData(item);
+    }
   };
 
   const handleUpdate = () => {
@@ -141,9 +138,14 @@ const ReferenceDataManager: React.FC = () => {
     const refPath = getRefPath(category, editingId);
     if (!refPath) return;
     const dbRef = ref(db, refPath);
-    update(dbRef, formData);
+    if (category === 'loyaltyTriggerEvents') {
+      update(dbRef, { value: formData.value || '', label: formData.label || '' });
+      setFormData({ id: '', value: '', label: '' });
+    } else {
+      update(dbRef, formData);
+      setFormData({ id: '', name: '', description: '', iconUrl: '' });
+    }
     setEditingId(null);
-    setFormData({ id: '', name: '', description: '', iconUrl: '' });
   };
 
   const handleDelete = (id: string) => {
@@ -166,8 +168,8 @@ const ReferenceDataManager: React.FC = () => {
         <option value="zones">Pricing Zones</option>
         <option value="cities">Cities</option>
         <option value="weatherConditions">Weather Conditions</option>
+        <option value="loyaltyTriggerEvents">Loyalty Trigger Events</option>
       </select>
-
       <table className="min-w-full border mb-4">
         <thead>
           <tr>
@@ -179,8 +181,8 @@ const ReferenceDataManager: React.FC = () => {
           </tr>
         </thead>
         <tbody>
-          {items.map(item => (
-            <tr key={item.id}>
+          {items.map((item) => (
+            <tr key={item.id || item.name || JSON.stringify(item)}>
               <td>{item.name}</td>
               <td>{item.description}</td>
               {category === 'fxSegments' && <td>{item.type || ''}</td>}
@@ -217,50 +219,74 @@ const ReferenceDataManager: React.FC = () => {
           ))}
         </tbody>
       </table>
-
       <form onSubmit={e => { e.preventDefault(); editingId ? handleUpdate() : handleAdd(); }}>
-        <div>
-          <label className="block text-sm font-medium mb-1">Name</label>
-          <input
-            type="text"
-            value={formData.name || ''}
-            onChange={e => setFormData({ ...formData, name: e.target.value })}
-            className="w-full px-3 py-2 border rounded"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Description</label>
-          <input
-            type="text"
-            value={formData.description || ''}
-            onChange={e => setFormData({ ...formData, description: e.target.value })}
-            className="w-full px-3 py-2 border rounded"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Icon Image</label>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleIconUpload}
-            className="w-full px-3 py-2 border rounded"
-          />
-          {formData.iconUrl && (
-            <span style={{ display: 'inline-block', background: '#fff', borderRadius: '50%', padding: 4, marginTop: 8 }}>
-              <img
-                src={formData.iconUrl}
-                alt={formData.name || 'icon'}
-                style={{ width: 32, height: 32, objectFit: 'contain', borderRadius: '50%', background: '#fff' }}
+        {category === 'loyaltyTriggerEvents' ? (
+          <>
+            <div>
+              <label className="block text-sm font-medium mb-1">Value</label>
+              <input
+                type="text"
+                value={formData.value || ''}
+                onChange={e => setFormData({ ...formData, value: e.target.value })}
+                className="w-full px-3 py-2 border rounded"
               />
-            </span>
-          )}
-        </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Label</label>
+              <input
+                type="text"
+                value={formData.label || ''}
+                onChange={e => setFormData({ ...formData, label: e.target.value })}
+                className="w-full px-3 py-2 border rounded"
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <label className="block text-sm font-medium mb-1">Name</label>
+              <input
+                type="text"
+                value={formData.name || ''}
+                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                className="w-full px-3 py-2 border rounded"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Description</label>
+              <input
+                type="text"
+                value={formData.description || ''}
+                onChange={e => setFormData({ ...formData, description: e.target.value })}
+                className="w-full px-3 py-2 border rounded"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Icon Image</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleIconUpload}
+                className="w-full px-3 py-2 border rounded"
+              />
+              {formData.iconUrl && (
+                <span style={{ display: 'inline-block', background: '#fff', borderRadius: '50%', padding: 4, marginTop: 8 }}>
+                  <img
+                    src={formData.iconUrl}
+                    alt={formData.name || 'icon'}
+                    style={{ width: 32, height: 32, objectFit: 'contain', borderRadius: '50%', background: '#fff' }}
+                  />
+                </span>
+              )}
+            </div>
+          </>
+        )}
         <div className="flex gap-2 mt-4">
           <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded">
             {editingId ? 'Update' : 'Add'}
           </button>
           {editingId && (
-            <button type="button" onClick={() => { setEditingId(null); setFormData({ id: '', name: '', description: '', iconUrl: '' }); }} className="px-4 py-2 bg-gray-300 rounded">
+            <button type="button" onClick={() => { setEditingId(null); setFormData(category === 'loyaltyTriggerEvents' ? { id: '', value: '', label: '' } : { id: '', name: '', description: '', iconUrl: '' }); }} className="px-4 py-2 bg-gray-300 rounded">
               Cancel
             </button>
           )}

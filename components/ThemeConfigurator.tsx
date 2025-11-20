@@ -241,7 +241,7 @@ const ThemeConfigurator: React.FC = () => {
                     >
                       <option value="">(New Theme Name)</option>
                       {themeLibrary.themes.map((t, idx) => (
-                        <option key={idx} value={t.themeName}>{t.themeName}</option>
+                        <option key={t.themeName} value={t.themeName}>{t.themeName}</option>
                       ))}
                     </select>
                     <input
