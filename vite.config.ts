@@ -2,15 +2,52 @@ import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
-export default defineConfig(({ mode }) => {
-    const env = loadEnv(mode, '.', '');
+export default defineConfig(async ({ mode }) => {
+  const env = loadEnv(mode, '.', '');
+  const DEV_TUNNEL_HOST = env.DEV_TUNNEL_HOST || '';
+  const isTunnel = !!DEV_TUNNEL_HOST;
+
+  // Base plugins
+  const plugins = [react()];
+  let visualizerPlugin: any = null;
+
+    // Optionally include bundle visualizer if available
+    try {
+      // @ts-ignore - visualizer is an optional dev dependency; ignore type resolution
+      const { visualizer } = await import('rollup-plugin-visualizer');
+      visualizerPlugin = visualizer({
+        filename: 'dist/bundle-report.html',
+        template: 'treemap',
+        gzipSize: true,
+        brotliSize: true,
+        open: false,
+        emitFile: false
+      }) as any;
+    } catch (e) {
+      // Visualizer not installed; skip without failing the build
+    }
+
     return {
-      base: './',
+      base: mode === 'production' ? './' : '/',
       server: {
-        port: 3000,
+        port: 3001,
         host: '0.0.0.0',
+        strictPort: false,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+          'Access-Control-Allow-Headers': 'X-Requested-With, content-type, Authorization',
+        },
+        proxy: isTunnel ? undefined : undefined,
+        hmr: isTunnel
+          ? false  // Disable HMR for tunnel to prevent hanging
+          : true,
+        cors: true,
+        watch: {
+          usePolling: false,
+        },
       },
-      plugins: [react()],
+      plugins,
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
@@ -18,17 +55,25 @@ export default defineConfig(({ mode }) => {
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
-        }
+        },
+        // Ensure only a single copy of React and ReactDOM are bundled
+        dedupe: ['react', 'react-dom', 'use-sync-external-store']
       },
       build: {
+        sourcemap: mode === 'development',
         // Split vendor and react-related code into separate chunks to reduce the main bundle size
         rollupOptions: {
+          plugins: [
+            // only include if available
+            ...(visualizerPlugin ? [visualizerPlugin] : [])
+          ],
           output: {
             manualChunks(id) {
               if (!id) return;
               if (id.includes('node_modules')) {
                 // Split large, specific libraries into their own vendor chunks
-                if (id.includes('react') || id.includes('react-dom')) return 'vendor_react';
+                // Group use-sync-external-store WITH React to ensure proper initialization order
+                if (id.includes('react') || id.includes('react-dom') || id.includes('use-sync-external-store')) return 'vendor_react';
                 if (id.includes('recharts')) return 'vendor_recharts';
                 if (id.includes('firebase')) {
                   // Prefer splitting firebase into its specific submodules when present

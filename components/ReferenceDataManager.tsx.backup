@@ -1,0 +1,411 @@
+import React, { useState, useEffect } from 'react';
+import { getDatabase, ref, onValue, push, remove, update } from 'firebase/database';
+import { useAuth } from '../contexts/AuthContext';
+import { logAudit, calculateChanges } from '../services/auditService';
+
+interface ReferenceItem {
+  id: string;
+  name: string;
+  code?: string; // For currencies
+  population?: number; // For cities/countries
+  dateAdded: string;
+  addedBy: string;
+}
+
+type CategoryType = 'countries' | 'currencies' | 'fxSegments' | 'cities';
+
+const ReferenceDataManager: React.FC = () => {
+  const [activeCategory, setActiveCategory] = useState<CategoryType>('countries');
+  const [items, setItems] = useState<ReferenceItem[]>([]);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [editingItem, setEditingItem] = useState<ReferenceItem | null>(null);
+  const [bulkImportText, setBulkImportText] = useState('');
+  const [formData, setFormData] = useState({
+    name: '',
+    code: '',
+    population: ''
+  });
+  const { currentUser, isAdmin } = useAuth();
+  const database = getDatabase();
+
+  const categoryConfig = {
+    countries: {
+      label: 'Countries',
+      icon: '🌍',
+      dbPath: 'referenceCountries',
+      fields: ['name', 'population'],
+      bulkHelp: 'Enter one country per line. Format: CountryName or CountryName,Population'
+    },
+    currencies: {
+      label: 'Currencies',
+      icon: '💱',
+      dbPath: 'referenceCurrencies',
+      fields: ['code', 'name'],
+      bulkHelp: 'Enter one currency per line. Format: CODE,Name (e.g., USD,US Dollar)'
+    },
+    fxSegments: {
+      label: 'FX Segments',
+      icon: '📊',
+      dbPath: 'referenceFXSegments',
+      fields: ['name'],
+      bulkHelp: 'Enter one segment per line (e.g., Retail, Corporate, Premium)'
+    },
+    cities: {
+      label: 'German Cities',
+      icon: '🏙️',
+      dbPath: 'referenceCities',
+      fields: ['name', 'population'],
+      bulkHelp: 'Enter one city per line. Format: CityName,Population'
+    }
+  };
+
+  useEffect(() => {
+    const citiesRef = ref(database, 'referenceCities');
+    const unsubscribe = onValue(citiesRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const citiesArray: City[] = Object.entries(data).map(([id, city]: [string, any]) => ({
+          id,
+          ...city
+        }));
+        // Sort by population (descending)
+        citiesArray.sort((a, b) => b.population - a.population);
+        setCities(citiesArray);
+      } else {
+        setCities([]);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!currentUser) {
+      alert('You must be logged in to add cities');
+      return;
+    }
+
+    const cityData = {
+      name: formData.name,
+      population: parseInt(formData.population),
+      dateAdded: new Date().toISOString(),
+      addedBy: currentUser.name || currentUser.email
+    };
+
+    try {
+      if (editingCity) {
+        // Update existing city
+        const cityRef = ref(database, `referenceCities/${editingCity.id}`);
+        await update(cityRef, cityData);
+
+        // Log audit for update
+        const changes = calculateChanges(
+          { name: editingCity.name, population: editingCity.population },
+          { name: cityData.name, population: cityData.population }
+        );
+        await logAudit({
+          userId: currentUser.email,
+          userName: currentUser.name,
+          userEmail: currentUser.email,
+          action: 'update',
+          entityType: 'reference',
+          entityId: editingCity.id,
+          entityName: cityData.name,
+          changes,
+        });
+
+        setEditingCity(null);
+      } else {
+        // Add new city
+        const citiesRef = ref(database, 'referenceCities');
+        const newCityRef = await push(citiesRef, cityData);
+
+        // Log audit for create
+        await logAudit({
+          userId: currentUser.email,
+          userName: currentUser.name,
+          userEmail: currentUser.email,
+          action: 'create',
+          entityType: 'reference',
+          entityId: newCityRef.key || '',
+          entityName: cityData.name,
+        });
+      }
+      
+      setFormData({ name: '', population: '' });
+      setShowAddForm(false);
+    } catch (error) {
+      console.error('Error saving city:', error);
+      alert('Failed to save city');
+    }
+  };
+
+  const handleDelete = async (cityId: string) => {
+    if (!isAdmin) {
+      alert('Only administrators can delete cities');
+      return;
+    }
+
+    if (window.confirm('Are you sure you want to delete this city?')) {
+      try {
+        // Get city details before deletion for audit log
+        const cityToDelete = cities.find(c => c.id === cityId);
+        
+        const cityRef = ref(database, `referenceCities/${cityId}`);
+        await remove(cityRef);
+
+        // Log audit for delete
+        if (currentUser && cityToDelete) {
+          await logAudit({
+            userId: currentUser.email,
+            userName: currentUser.name,
+            userEmail: currentUser.email,
+            action: 'delete',
+            entityType: 'reference',
+            entityId: cityId,
+            entityName: cityToDelete.name,
+          });
+        }
+      } catch (error) {
+        console.error('Error deleting city:', error);
+        alert('Failed to delete city');
+      }
+    }
+  };
+
+  const handleEdit = (city: City) => {
+    setEditingCity(city);
+    setFormData({
+      name: city.name,
+      population: city.population.toString()
+    });
+    setShowAddForm(true);
+  };
+
+  const handleCancel = () => {
+    setShowAddForm(false);
+    setEditingCity(null);
+    setFormData({ name: '', population: '' });
+  };
+
+  const formatPopulation = (population: number): string => {
+    if (population >= 1000000) {
+      return `${(population / 1000000).toFixed(2)} million`;
+    }
+    return population.toLocaleString();
+  };
+
+  const formatDate = (dateString: string): string => {
+    return new Date(dateString).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
+
+  const initializeDefaultCities = async () => {
+    if (!isAdmin) {
+      alert('Only administrators can initialize default data');
+      return;
+    }
+
+    const defaultCities = [
+      { name: 'Berlin', population: 3850000 },
+      { name: 'Hamburg', population: 1900000 },
+      { name: 'Munich', population: 1600000 },
+      { name: 'Cologne', population: 1100000 },
+      { name: 'Frankfurt', population: 773000 },
+      { name: 'Stuttgart', population: 633000 },
+      { name: 'Düsseldorf', population: 629000 },
+      { name: 'Leipzig', population: 628000 },
+      { name: 'Dortmund', population: 612000 },
+      { name: 'Essen', population: 587000 },
+      { name: 'Bremen', population: 577000 },
+      { name: 'Dresden', population: 563000 },
+      { name: 'Hanover', population: 545000 },
+      { name: 'Nuremberg', population: 544000 },
+      { name: 'Duisburg', population: 504000 }
+    ];
+
+    try {
+      const citiesRef = ref(database, 'referenceCities');
+      for (const city of defaultCities) {
+        await push(citiesRef, {
+          ...city,
+          dateAdded: new Date().toISOString(),
+          addedBy: currentUser?.name || currentUser?.email || 'System'
+        });
+      }
+
+      // Log audit for initialization
+      if (currentUser) {
+        await logAudit({
+          userId: currentUser.email,
+          userName: currentUser.name,
+          userEmail: currentUser.email,
+          action: 'initialize',
+          entityType: 'reference',
+          entityName: 'German Cities',
+          metadata: { cityCount: defaultCities.length },
+        });
+      }
+
+      alert('Default cities added successfully');
+    } catch (error) {
+      console.error('Error initializing cities:', error);
+      alert('Failed to initialize cities');
+    }
+  };
+
+  return (
+    <div className="p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold">Reference Data - German Cities</h2>
+        <div className="flex gap-2">
+          {cities.length === 0 && isAdmin && (
+            <button
+              onClick={initializeDefaultCities}
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+            >
+              Initialize Default Cities
+            </button>
+          )}
+          <button
+            onClick={() => {
+              setShowAddForm(!showAddForm);
+              if (showAddForm) handleCancel();
+            }}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            {showAddForm ? 'Cancel' : 'Add City'}
+          </button>
+        </div>
+      </div>
+
+      {showAddForm && (
+        <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+          <h3 className="text-lg font-semibold mb-4">
+            {editingCity ? 'Edit City' : 'Add New City'}
+          </h3>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">City Name</label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full px-3 py-2 border rounded"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Population</label>
+              <input
+                type="number"
+                value={formData.population}
+                onChange={(e) => setFormData({ ...formData, population: e.target.value })}
+                className="w-full px-3 py-2 border rounded"
+                required
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                {editingCity ? 'Update City' : 'Add City'}
+              </button>
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                City Name
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Population
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Date Added
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Added By
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {cities.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                  No cities found. Click "Initialize Default Cities" or "Add City" to get started.
+                </td>
+              </tr>
+            ) : (
+              cities.map((city) => (
+                <tr key={city.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-gray-900">{city.name}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">
+                      {city.name} ({formatPopulation(city.population)})
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-500">{formatDate(city.dateAdded)}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-500">{city.addedBy}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <button
+                      onClick={() => handleEdit(city)}
+                      className="text-blue-600 hover:text-blue-900 mr-4"
+                    >
+                      Edit
+                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => handleDelete(city.id)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mt-4 text-sm text-gray-600">
+        <p>
+          <strong>Note:</strong> This reference data can be used to populate dropdown boxes throughout the application.
+          Cities are automatically sorted by population (highest to lowest).
+        </p>
+      </div>
+    </div>
+  );
+};
+
+export default ReferenceDataManager;

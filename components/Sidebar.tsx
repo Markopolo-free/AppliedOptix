@@ -1,8 +1,9 @@
-
 import React from 'react';
-import { DashboardIcon, UsersIcon, PricingIcon, CampaignIcon, LoyaltyIcon, CloseIcon, ZoneIcon, ServiceIcon } from './icons';
+import { DashboardIcon, UsersIcon, PricingIcon, CampaignIcon, LoyaltyIcon, CloseIcon, ZoneIcon, ServiceIcon, FXCampaignIcon, FXDiscountIcon } from './icons';
+import { useAuth } from '../contexts/AuthContext';
+import { logAudit } from '../services/auditService';
 
-type View = 'dashboard' | 'users' | 'services' | 'pricing' | 'campaigns' | 'loyalty' | 'zones';
+type View = 'dashboard' | 'users' | 'services' | 'pricing' | 'campaigns' | 'loyalty' | 'zones' | 'theme' | 'reference' | 'audit' | 'fxpricing' | 'discountgroups' | 'fxcampaigns' | 'fxdiscountoptions' | 'dataextract';
 
 interface SidebarProps {
   currentView: View;
@@ -35,11 +36,30 @@ const NavLink: React.FC<{
 );
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, isSidebarOpen, setSidebarOpen }) => {
+  const { currentUser, logout } = useAuth();
+  
   const handleNavClick = (view: View) => {
     setCurrentView(view);
     if (window.innerWidth < 1024) { // Close sidebar on mobile after navigation
         setSidebarOpen(false);
     }
+  };
+
+  const handleLogout = async () => {
+    if (currentUser) {
+      // Log logout audit
+      await logAudit({
+        userId: currentUser.email,
+        userName: currentUser.name,
+        userEmail: currentUser.email,
+        action: 'logout',
+        entityType: 'auth',
+        metadata: { timestamp: new Date().toISOString() }
+      });
+    }
+    logout();
+    // Reload the page to show login screen
+    window.location.reload();
   };
   
   const navItems = [
@@ -50,7 +70,19 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, isSideba
     { view: 'zones', label: 'Pricing Zones', icon: <ZoneIcon /> },
     { view: 'campaigns', label: 'Campaigns', icon: <CampaignIcon /> },
     { view: 'loyalty', label: 'Loyalty Programs', icon: <LoyaltyIcon /> },
+    { view: 'bundledpricing', label: 'Bundled Pricing', icon: <PricingIcon /> },
+    { view: 'companyDetails', label: '🏢 Company Details', icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2" stroke="currentColor" strokeWidth="2" fill="none"/><path d="M3 7V5a2 2 0 012-2h14a2 2 0 012 2v2" stroke="currentColor" strokeWidth="2" fill="none"/></svg> },
+    { view: 'discountgroups', label: '🎫 User Discount Groups', icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg> },
+    { view: 'theme', label: '🎨 Theme Builder', icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg> },
+    { view: 'reference', label: '📚 Reference Data', icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg> },
+    { view: 'audit', label: '📊 Audit Log', icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg> },
+    { view: 'dataextract', label: '🗃️ Data Extraction', icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2" stroke="currentColor" strokeWidth="2" fill="none"/><path d="M3 7V5a2 2 0 012-2h14a2 2 0 012 2v2" stroke="currentColor" strokeWidth="2" fill="none"/></svg> },
   ];
+
+  const handleLogoutClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    handleLogout();
+  };
 
   return (
     <>
@@ -65,7 +97,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, isSideba
           </button>
         </div>
 
-        <nav className="mt-10">
+        <nav className="mt-10 pb-24">
           {navItems.map(item => (
             <NavLink
               key={item.view}
@@ -75,6 +107,40 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, isSideba
               onClick={() => handleNavClick(item.view as View)}
             />
           ))}
+
+          {/* Logout as last menu item */}
+          <a
+            href="#"
+            onClick={handleLogoutClick}
+            className="flex items-center px-4 py-3 mt-4 text-sm font-medium transition-colors duration-200 transform rounded-lg bg-red-600 text-white hover:bg-red-700"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+            </svg>
+            <span className="mx-4">Logout</span>
+          </a>
+
+          {/* FX items below logout, yellow color */}
+          <div className="mt-4">
+            <NavLink
+              icon={<FXCampaignIcon />}
+              label={<span className="text-yellow-400">FX Campaigns</span>}
+              isActive={currentView === 'fxcampaigns'}
+              onClick={() => handleNavClick('fxcampaigns')}
+            />
+            <NavLink
+              icon={<FXDiscountIcon />}
+              label={<span className="text-yellow-400">FX Discount Groups</span>}
+              isActive={currentView === 'fxdiscountoptions'}
+              onClick={() => handleNavClick('fxdiscountoptions')}
+            />
+            <NavLink
+              icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>}
+              label={<span className="text-yellow-400">FX Pricing</span>}
+              isActive={currentView === 'fxpricing'}
+              onClick={() => handleNavClick('fxpricing')}
+            />
+          </div>
         </nav>
       </div>
       {isSidebarOpen && <div className="fixed inset-0 bg-black opacity-50 z-20 lg:hidden" onClick={() => setSidebarOpen(false)}></div>}

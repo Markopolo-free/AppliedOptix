@@ -1,21 +1,30 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ref, get, push, set, serverTimestamp, update, remove } from 'firebase/database';
+import { ref, get, push, set, serverTimestamp, update, remove, query, orderByChild, equalTo, onValue } from 'firebase/database';
 import { db } from '../services/firebase';
 import { Service, ServiceStatus } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import { logAudit, calculateChanges } from '../services/auditService';
 
 const initialNewServiceState = {
     name: '',
     description: '',
     type: 'Electric Car',
     price: '',
+    minChargeAmount: '0.00',
     currency: 'EUR',
     status: ServiceStatus.Available,
+    country: '',
     location: '',
+    effectiveDate: new Date().toISOString().split('T')[0], // Default to today
 };
 
 const ServiceManager: React.FC = () => {
+    const { currentUser } = useAuth();
     const [services, setServices] = useState<Service[]>([]);
     const [serviceTypes, setServiceTypes] = useState<string[]>([]);
+    const [countries, setCountries] = useState<string[]>([]);
+    const [cities, setCities] = useState<{ id: string; name: string; country: string }[]>([]);
+    const [filteredCities, setFilteredCities] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isAddTypeModalOpen, setIsAddTypeModalOpen] = useState(false);
@@ -24,31 +33,53 @@ const ServiceManager: React.FC = () => {
     const [editingService, setEditingService] = useState<Service | null>(null);
 
     const fetchAndSeedServiceTypes = useCallback(async () => {
-        const typesRef = ref(db, 'serviceTypes');
+        // Load service types from reference data
+        const typesRef = ref(db, 'referenceServiceTypes');
         const snapshot = await get(typesRef);
         let types: string[] = [];
         if (snapshot.exists()) {
             const data = snapshot.val();
-            types = Object.values(data) as string[];
+            // Extract names from reference data structure
+            types = Object.values(data).map((item: any) => item.name);
             setServiceTypes(types);
         } else {
-            // Seed initial data if it doesn't exist
-            const initialTypes = ['Electric Car', 'eScooter', 'eBike', 'Bus', 'Train', 'Pay-as-you-go Office', 'Health Clinic'];
-            const updates: { [key: string]: string } = {};
-            initialTypes.forEach(typeName => {
-                const newKey = push(typesRef).key;
-                if (newKey) {
-                    updates[newKey] = typeName;
-                }
-            });
-            await set(typesRef, updates);
-            types = initialTypes;
-            setServiceTypes(initialTypes);
+            // If no reference data exists, provide empty array
+            setServiceTypes([]);
         }
         // Ensure form default type is a valid one
         if (types.length > 0 && initialNewServiceState.type !== types[0]) {
             initialNewServiceState.type = types[0];
             setFormData(initialNewServiceState);
+        }
+    }, []);
+    
+    const fetchCountries = useCallback(async () => {
+        const countriesRef = ref(db, 'referenceCountries');
+        const snapshot = await get(countriesRef);
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            const countryList = Object.values(data).map((item: any) => item.name).sort();
+            setCountries(countryList);
+        } else {
+            setCountries([]);
+        }
+    }, []);
+
+    const fetchCities = useCallback(async () => {
+        const citiesRef = ref(db, 'referenceCities');
+        const snapshot = await get(citiesRef);
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            const cityList = Object.keys(data).map(key => ({
+                id: key,
+                name: data[key].name,
+                country: data[key].country || ''
+            }));
+            console.log('Loaded cities:', cityList);
+            console.log('Unique countries in cities:', [...new Set(cityList.map(c => c.country))]);
+            setCities(cityList);
+        } else {
+            setCities([]);
         }
     }, []);
     
@@ -73,6 +104,8 @@ const ServiceManager: React.FC = () => {
         setIsLoading(true);
         try {
             await fetchAndSeedServiceTypes();
+            await fetchCountries();
+            await fetchCities();
             await fetchServices();
         } catch (error) {
              console.error("Error fetching data: ", error);
@@ -80,29 +113,79 @@ const ServiceManager: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [fetchAndSeedServiceTypes, fetchServices]);
+    }, [fetchAndSeedServiceTypes, fetchCountries, fetchCities, fetchServices]);
 
     useEffect(() => {
         fetchData();
     }, [fetchData]);
 
+    // Filter cities when country changes
+    useEffect(() => {
+        console.log('City filter effect triggered. Country:', formData.country, 'Total cities:', cities.length);
+        if (formData.country) {
+            const filtered = cities
+                .filter(city => {
+                    // Match exact country or include cities with empty country (legacy German cities)
+                    if (city.country === formData.country) return true;
+                    // If city has no country and we're selecting Germany, include it (legacy data)
+                    if (!city.country && formData.country === 'Germany') return true;
+                    return false;
+                })
+                .map(city => city.name)
+                .sort();
+            console.log('Filtered cities for', formData.country, ':', filtered);
+            setFilteredCities(filtered);
+            // Only reset location if it's not in the filtered list and it's not empty
+            if (formData.location && filtered.length > 0 && !filtered.includes(formData.location)) {
+                console.log('Resetting location because', formData.location, 'not in filtered list');
+                setFormData(prev => ({ ...prev, location: '' }));
+            }
+        } else {
+            console.log('No country selected, clearing filtered cities');
+            setFilteredCities([]);
+        }
+    }, [formData.country, cities, formData.location]);
+
     const handleOpenModalForAdd = () => {
         setEditingService(null);
         setFormData(initialNewServiceState);
+        setFilteredCities([]);
         setIsModalOpen(true);
     };
 
     const handleOpenModalForEdit = (service: Service) => {
         setEditingService(service);
-        setFormData({
+        const editData = {
             name: service.name,
             description: service.description,
             type: service.type,
             price: String(service.price),
+            minChargeAmount: service.minChargeAmount !== undefined ? String(service.minChargeAmount) : '0.00',
             currency: service.currency,
             status: service.status,
+            country: service.country || '',
             location: service.location,
-        });
+            effectiveDate: service.effectiveDate || new Date().toISOString().split('T')[0],
+        };
+        setFormData(editData);
+        
+        // Pre-filter cities for the selected country - useEffect will handle this
+        // but we set it here too in case cities are already loaded
+        if (service.country) {
+            const filtered = cities
+                .filter(city => {
+                    // Match exact country or include cities with empty country (legacy German cities)
+                    if (city.country === service.country) return true;
+                    // If city has no country and we're selecting Germany, include it (legacy data)
+                    if (!city.country && service.country === 'Germany') return true;
+                    return false;
+                })
+                .map(city => city.name)
+                .sort();
+            console.log('Filtering cities for country:', service.country, 'Found:', filtered.length, 'cities');
+            setFilteredCities(filtered);
+        }
+        
         setIsModalOpen(true);
     };
 
@@ -116,6 +199,7 @@ const ServiceManager: React.FC = () => {
         const serviceData = {
             ...formData,
             price: parseFloat(formData.price) || 0,
+            minChargeAmount: parseFloat((formData as any).minChargeAmount) || 0,
             lastModifiedBy: 'usr_admin',
             lastModifiedAt: serverTimestamp(),
         };
@@ -124,10 +208,38 @@ const ServiceManager: React.FC = () => {
             if (editingService) {
                 const serviceRef = ref(db, `services/${editingService.id}`);
                 await update(serviceRef, serviceData);
+
+                // Log audit for update
+                if (currentUser) {
+                    const changes = calculateChanges(editingService, serviceData);
+                    await logAudit({
+                        userId: currentUser.email,
+                        userName: currentUser.name,
+                        userEmail: currentUser.email,
+                        action: 'update',
+                        entityType: 'service',
+                        entityId: editingService.id,
+                        entityName: serviceData.name,
+                        changes,
+                    });
+                }
             } else {
                 const servicesListRef = ref(db, 'services');
                 const newServiceRef = push(servicesListRef);
                 await set(newServiceRef, serviceData);
+
+                // Log audit for create
+                if (currentUser) {
+                    await logAudit({
+                        userId: currentUser.email,
+                        userName: currentUser.name,
+                        userEmail: currentUser.email,
+                        action: 'create',
+                        entityType: 'service',
+                        entityId: newServiceRef.key || '',
+                        entityName: serviceData.name,
+                    });
+                }
             }
             setIsModalOpen(false);
             setEditingService(null);
@@ -148,10 +260,15 @@ const ServiceManager: React.FC = () => {
             alert("This service type already exists.");
             return;
         }
-        const typesRef = ref(db, 'serviceTypes');
+        // Save to reference data with proper structure
+        const typesRef = ref(db, 'referenceServiceTypes');
         const newTypeRef = push(typesRef);
         try {
-            await set(newTypeRef, trimmedTypeName);
+            await set(newTypeRef, {
+                name: trimmedTypeName,
+                dateAdded: new Date().toISOString(),
+                addedBy: currentUser?.name || currentUser?.email || 'System'
+            });
             const updatedTypes = [...serviceTypes, trimmedTypeName];
             setServiceTypes(updatedTypes);
             setFormData(prev => ({ ...prev, type: trimmedTypeName }));
@@ -166,7 +283,24 @@ const ServiceManager: React.FC = () => {
     const handleDeleteService = async (serviceId: string) => {
         if (window.confirm('Are you sure you want to delete this service?')) {
             try {
+                // Get service details before deletion for audit log
+                const serviceToDelete = services.find(s => s.id === serviceId);
+                
                 await remove(ref(db, `services/${serviceId}`));
+                
+                // Log audit for delete
+                if (currentUser && serviceToDelete) {
+                    await logAudit({
+                        userId: currentUser.email,
+                        userName: currentUser.name,
+                        userEmail: currentUser.email,
+                        action: 'delete',
+                        entityType: 'service',
+                        entityId: serviceId,
+                        entityName: serviceToDelete.name,
+                    });
+                }
+                
                 await fetchServices();
             } catch (error) {
                 console.error("Error deleting service:", error);
@@ -194,34 +328,45 @@ const ServiceManager: React.FC = () => {
             </div>
 
             <div className="bg-white shadow-md rounded-lg overflow-hidden border border-gray-200">
-                <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
+                <div className="overflow-x-auto max-h-[calc(100vh-200px)] overflow-y-auto">
+                    <table className="min-w-full text-sm">
+                        <thead className="bg-blue-600 sticky top-0 z-10">
                             <tr>
-                                <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Service Name</th>
-                                <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                                <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                                <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Last Modified</th>
-                                <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
+                                <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Service Name</th>
+                                <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Type</th>
+                                <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Country</th>
+                                <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">City</th>
+                                <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Min Charge</th>
+                                <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Price</th>
+                                   <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Effective Date</th>
+                                <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Status</th>
+                                <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Last Modified</th>
+                                <th scope="col" className="px-6 py-4 text-right text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {isLoading ? (
-                                <tr><td colSpan={6} className="text-center py-10 text-gray-500">Loading services...</td></tr>
-                            ) : services.length === 0 ? (
-                                <tr><td colSpan={6} className="text-center py-10 text-gray-500">No services found.</td></tr>
+                {isLoading ? (
+                    <tr><td colSpan={10} className="text-center py-10 text-gray-500">Loading services...</td></tr>
+                ) : services.length === 0 ? (
+                    <tr><td colSpan={10} className="text-center py-10 text-gray-500">No services found.</td></tr>
                             ) : (
                                 services.map((service) => (
                                     <tr key={service.id}>
                                         <td className="px-6 py-4">
                                             <div className="font-medium text-gray-900">{service.name}</div>
-                                            <div className="text-gray-500">{service.location}</div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-gray-700">{service.type}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-gray-700">{service.country || 'N/A'}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-gray-700">{service.location || 'N/A'}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-gray-700">
+                                            {new Intl.NumberFormat('de-DE', { style: 'currency', currency: service.currency }).format((service.minChargeAmount ?? 0))}
+                                        </td>
                                         <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
                                             {new Intl.NumberFormat('de-DE', { style: 'currency', currency: service.currency }).format(service.price)}
                                         </td>
+                                           <td className="px-6 py-4 whitespace-nowrap text-gray-700">
+                                               {service.effectiveDate ? new Date(service.effectiveDate).toLocaleDateString() : 'N/A'}
+                                           </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(service.status)}`}>
                                                 {service.status}
@@ -232,8 +377,14 @@ const ServiceManager: React.FC = () => {
                                             <div className="text-xs text-gray-400">by {service.lastModifiedBy}</div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right font-medium">
-                                            <button onClick={() => handleOpenModalForEdit(service)} className="text-primary-600 hover:text-primary-900">Edit</button>
-                                            <button onClick={() => handleDeleteService(service.id)} className="ml-4 text-red-600 hover:text-red-900">Delete</button>
+                                                                                        <button
+                                                                                            className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 mr-2"
+                                                                                            onClick={() => handleOpenModalForEdit(service)}
+                                                                                        >Edit</button>
+                                                                                        <button
+                                                                                            className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                                                                                            onClick={() => handleDeleteService(service.id)}
+                                                                                        >Delete</button>
                                         </td>
                                     </tr>
                                 ))
@@ -267,12 +418,45 @@ const ServiceManager: React.FC = () => {
                                     </div>
                                 </div>
                                 <div>
-                                    <label htmlFor="location" className="block text-sm font-medium text-gray-700">Location</label>
-                                    <input type="text" name="location" id="location" value={formData.location} onChange={handleInputChange} placeholder="e.g. Berlin" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
+                                    <label htmlFor="country" className="block text-sm font-medium text-gray-700">Country</label>
+                                    <select 
+                                        name="country" 
+                                        id="country" 
+                                        value={formData.country} 
+                                        onChange={handleInputChange} 
+                                        className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                                        required
+                                    >
+                                        <option value="">Select Country...</option>
+                                        {countries.map(country => <option key={country} value={country}>{country}</option>)}
+                                    </select>
                                 </div>
+                                <div>
+                                    <label htmlFor="location" className="block text-sm font-medium text-gray-700">Location (City)</label>
+                                    <select 
+                                        name="location" 
+                                        id="location" 
+                                        value={formData.location} 
+                                        onChange={handleInputChange}
+                                        disabled={!formData.country || filteredCities.length === 0}
+                                        className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
+                                        required
+                                    >
+                                        <option value="">{!formData.country ? 'Select country first...' : 'Select City...'}</option>
+                                        {filteredCities.map(city => <option key={city} value={city}>{city}</option>)}
+                                    </select>
+                                </div>
+                                   <div>
+                                       <label htmlFor="effectiveDate" className="block text-sm font-medium text-gray-700">Effective Date</label>
+                                       <input type="date" name="effectiveDate" id="effectiveDate" value={formData.effectiveDate} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required />
+                                   </div>
                                 <div>
                                     <label htmlFor="price" className="block text-sm font-medium text-gray-700">Price</label>
                                     <input type="number" name="price" id="price" value={formData.price} onChange={handleInputChange} step="0.01" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required />
+                                </div>
+                                <div>
+                                    <label htmlFor="minChargeAmount" className="block text-sm font-medium text-gray-700">Minimum Charge Amount (optional)</label>
+                                    <input type="number" name="minChargeAmount" id="minChargeAmount" value={(formData as any).minChargeAmount} onChange={handleInputChange} step="0.01" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
                                 </div>
                                 <div>
                                     <label htmlFor="currency" className="block text-sm font-medium text-gray-700">Currency</label>

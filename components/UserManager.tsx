@@ -1,17 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ref, get, push, set, serverTimestamp, update, remove } from 'firebase/database';
+import { ref, get, push, set, serverTimestamp, update, remove, onValue, getDatabase } from 'firebase/database';
 import { db } from '../services/firebase';
 import { User, UserRole } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import { logAudit, calculateChanges } from '../services/auditService';
 
 const UserManager: React.FC = () => {
+  const { currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
   // State for the form, used for both adding and editing
-  const [formData, setFormData] = useState({ name: '', email: '', role: UserRole.Maker });
+  const [formData, setFormData] = useState({ name: '', email: '', role: UserRole.Maker, profilePicture: '', company: '' });
   // State to track which user is being edited, if any
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [companyNames, setCompanyNames] = useState<string[]>([]);
 
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
@@ -28,12 +32,19 @@ const UserManager: React.FC = () => {
                   name: userData.name || '',
                   email: userData.email || '',
                   role: userData.role || UserRole.Maker,
+                  profilePicture: userData.profilePicture,
+                  company: userData.company || '',
                   createdAt: new Date(userData.createdAt).toISOString(),
                   lastModifiedAt: userData.lastModifiedAt ? new Date(userData.lastModifiedAt).toISOString() : undefined,
                   lastModifiedBy: userData.lastModifiedBy,
               }
           });
-          usersList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          // Sort by company name (alphabetically, empty company last), then by createdAt desc
+          usersList.sort((a, b) => {
+            if ((a.company || '').toLowerCase() < (b.company || '').toLowerCase()) return -1;
+            if ((a.company || '').toLowerCase() > (b.company || '').toLowerCase()) return 1;
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          });
           setUsers(usersList); 
       } else {
           setUsers([]);
@@ -50,20 +61,61 @@ const UserManager: React.FC = () => {
     fetchUsers();
   }, [fetchUsers]);
 
+  useEffect(() => {
+    // Fetch company names from CompanyDetails
+    const db = getDatabase();
+    const companiesRef = ref(db, 'companies');
+    const unsubCompanies = onValue(companiesRef, (snapshot) => {
+      const data = snapshot.val() || {};
+      const names = Object.values(data).map((item: any) => item.name).filter(Boolean);
+      setCompanyNames(names);
+    });
+    return () => unsubCompanies();
+  }, []);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (limit to 500KB)
+    if (file.size > 500 * 1024) {
+      alert('Image size should be less than 500KB. Please choose a smaller image.');
+      return;
+    }
+
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select a valid image file.');
+      return;
+    }
+
+    // Convert to Base64
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      setFormData(prev => ({ ...prev, profilePicture: base64String }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveImage = () => {
+    setFormData(prev => ({ ...prev, profilePicture: '' }));
+  };
   
   const handleOpenModalForAdd = () => {
     setEditingUser(null);
-    setFormData({ name: '', email: '', role: UserRole.Maker });
+    setFormData({ name: '', email: '', role: UserRole.Maker, profilePicture: '', company: '' });
     setIsModalOpen(true);
   };
 
   const handleOpenModalForEdit = (user: User) => {
     setEditingUser(user);
-    setFormData({ name: user.name, email: user.email, role: user.role });
+    setFormData({ name: user.name, email: user.email, role: user.role, profilePicture: user.profilePicture || '', company: user.company || '' });
     setIsModalOpen(true);
   };
 
@@ -80,8 +132,26 @@ const UserManager: React.FC = () => {
             await update(userRef, {
                 ...formData,
                 lastModifiedAt: serverTimestamp(),
-                lastModifiedBy: 'admin_user_placeholder',
+                lastModifiedBy: currentUser.email,
             });
+
+            // Log audit for update
+            if (currentUser) {
+                const changes = calculateChanges(
+                    { name: editingUser.name, email: editingUser.email, role: editingUser.role, profilePicture: editingUser.profilePicture },
+                    formData
+                );
+                await logAudit({
+                    userId: currentUser.email,
+                    userName: currentUser.name,
+                    userEmail: currentUser.email,
+                    action: 'update',
+                    entityType: 'user',
+                    entityId: editingUser.id,
+                    entityName: formData.name,
+                    changes,
+                });
+            }
         } else {
             // Add new user
             const usersListRef = ref(db, 'users');
@@ -90,8 +160,21 @@ const UserManager: React.FC = () => {
                 ...formData,
                 createdAt: serverTimestamp(),
                 lastModifiedAt: serverTimestamp(),
-                lastModifiedBy: 'admin_user_placeholder',
+                lastModifiedBy: currentUser.email,
             });
+
+            // Log audit for create
+            if (currentUser) {
+                await logAudit({
+                    userId: currentUser.email,
+                    userName: currentUser.name,
+                    userEmail: currentUser.email,
+                    action: 'create',
+                    entityType: 'user',
+                    entityId: newUserRef.key || '',
+                    entityName: formData.name,
+                });
+            }
         }
 
         setIsModalOpen(false);
@@ -106,7 +189,24 @@ const UserManager: React.FC = () => {
   const handleDeleteUser = async (userId: string) => {
       if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
           try {
+              // Get user details before deletion for audit log
+              const userToDelete = users.find(u => u.id === userId);
+              
               await remove(ref(db, `users/${userId}`));
+              
+              // Log audit for delete
+              if (currentUser && userToDelete) {
+                  await logAudit({
+                      userId: currentUser.email,
+                      userName: currentUser.name,
+                      userEmail: currentUser.email,
+                      action: 'delete',
+                      entityType: 'user',
+                      entityId: userId,
+                      entityName: userToDelete.name,
+                  });
+              }
+              
               await fetchUsers();
           } catch (error) {
               console.error("Error deleting user:", error);
@@ -126,58 +226,83 @@ const UserManager: React.FC = () => {
       </div>
 
       <div className="bg-white shadow-md rounded-lg overflow-hidden border border-gray-200">
-        <div className="overflow-x-auto">
-            <table className="min-w-full text-sm divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+        <div className="overflow-x-auto max-h-[calc(100vh-200px)] overflow-y-auto">
+            <table className="min-w-full text-sm">
+            <thead className="bg-blue-600 sticky top-0 z-10">
                 <tr>
-                <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-                <th scope="col" className="px-6 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Last Modified</th>
-                <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
+                <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Name</th>
+                <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Role</th>
+                <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Company</th>
+                <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Created At</th>
+                <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Last Modified</th>
+                <th scope="col" className="px-6 py-4 text-right text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Actions</th>
                 </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-                {isLoading ? (
-                    <tr><td colSpan={5} className="text-center py-10 text-gray-500">Loading users from Realtime Database...</td></tr>
-                ) : users.length === 0 ? (
-                    <tr><td colSpan={5} className="text-center py-10 text-gray-500">No users found in database.</td></tr>
-                ) : (
-                    users.map((user) => (
-                    <tr key={user.id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                            <div className="flex-shrink-0 h-10 w-10">
-                            <img className="h-10 w-10 rounded-full" src={`https://i.pravatar.cc/40?u=${user.id}`} alt="" />
-                            </div>
-                            <div className="ml-4">
-                            <div className="font-medium text-gray-900">{user.name}</div>
-                            <div className="text-gray-500">{user.email}</div>
-                            </div>
-                        </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                user.role === UserRole.Administrator ? 'bg-red-100 text-red-800' :
-                                user.role === UserRole.Maker ? 'bg-blue-100 text-blue-800' :
-                                user.role === UserRole.Checker ? 'bg-yellow-100 text-yellow-800' :
-                                'bg-green-100 text-green-800'
-                            }`}>
-                            {user.role}
-                            </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-gray-500">{user.createdAt ? new Date(user.createdAt).toLocaleString() : 'N/A'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                            {user.lastModifiedAt ? new Date(user.lastModifiedAt).toLocaleString() : 'N/A'}
-                            {user.lastModifiedBy && <div className="text-xs text-gray-400">by {user.lastModifiedBy}</div>}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right font-medium">
-                            <button onClick={() => handleOpenModalForEdit(user)} className="text-primary-600 hover:text-primary-900">Edit</button>
-                            <button onClick={() => handleDeleteUser(user.id)} className="ml-4 text-red-600 hover:text-red-900">Delete</button>
-                        </td>
-                    </tr>
-                    ))
-                )}
+                                {isLoading ? (
+                                        <tr><td colSpan={6} className="text-center py-10 text-gray-500">Loading users from Realtime Database...</td></tr>
+                                ) : users.length === 0 ? (
+                                        <tr><td colSpan={6} className="text-center py-10 text-gray-500">No users found in database.</td></tr>
+                                ) : (
+                                        (() => {
+                                            let lastCompany = null;
+                                            return users.map((user, idx) => {
+                                                const showDivider = lastCompany !== null && lastCompany !== (user.company || "");
+                                                const row = (
+                                                    <React.Fragment key={user.id}>
+                                                        {showDivider && (
+                                                            <tr>
+                                                                <td colSpan={6}>
+                                                                    <div className="border-t-2 border-blue-400 my-1"></div>
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                        <tr>
+                                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                                <div className="flex items-center">
+                                                                    <div className="flex-shrink-0 h-10 w-10">
+                                                                        <img className="h-10 w-10 rounded-full object-cover" src={user.profilePicture || `https://i.pravatar.cc/40?u=${user.id}`} alt={user.name} />
+                                                                    </div>
+                                                                    <div className="ml-4">
+                                                                        <div className="font-medium text-gray-900">{user.name}</div>
+                                                                        <div className="text-gray-500">{user.email}</div>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                                                    user.role === UserRole.Administrator ? 'bg-red-100 text-red-800' :
+                                                                    user.role === UserRole.Maker ? 'bg-blue-100 text-blue-800' :
+                                                                    user.role === UserRole.Checker ? 'bg-yellow-100 text-yellow-800' :
+                                                                    'bg-green-100 text-green-800'
+                                                                }`}>
+                                                                    {user.role}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-gray-900">{user.company || <span className="text-gray-400">N/A</span>}</td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-gray-500">{user.createdAt ? new Date(user.createdAt).toLocaleString() : 'N/A'}</td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-gray-500">
+                                                                {user.lastModifiedAt ? new Date(user.lastModifiedAt).toLocaleString() : 'N/A'}
+                                                                {user.lastModifiedBy && <div className="text-xs text-gray-400">by {user.lastModifiedBy}</div>}
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-right font-medium">
+                                                                <button
+                                                                    className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 mr-2"
+                                                                    onClick={() => handleOpenModalForEdit(user)}
+                                                                >Edit</button>
+                                                                <button
+                                                                    className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                                                                    onClick={() => handleDeleteUser(user.id)}
+                                                                >Delete</button>
+                                                            </td>
+                                                        </tr>
+                                                    </React.Fragment>
+                                                );
+                                                lastCompany = user.company || "";
+                                                return row;
+                                            });
+                                        })()
+                                )}
             </tbody>
             </table>
         </div>
@@ -195,6 +320,28 @@ const UserManager: React.FC = () => {
                     <div className="mb-4">
                         <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
                         <input type="email" id="email" name="email" value={formData.email} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required />
+                    </div>
+                    <div className="mb-4">
+                        <label htmlFor="profilePicture" className="block text-sm font-medium text-gray-700 mb-1">Profile Picture (Optional)</label>
+                        <div className="flex items-center space-x-4">
+                            {formData.profilePicture && (
+                                <div className="relative">
+                                    <img src={formData.profilePicture} alt="Profile Preview" className="w-20 h-20 rounded-full object-cover border-2 border-gray-300" />
+                                    <button type="button" onClick={handleRemoveImage} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600" title="Remove picture">×</button>
+                                </div>
+                            )}
+                            <div className="flex-1">
+                                <input type="file" id="profilePicture" accept="image/*" onChange={handleImageUpload} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-sm" />
+                                <p className="text-xs text-gray-500 mt-1">Max size: 500KB. Supported formats: JPG, PNG, GIF</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="mb-4">
+                        <label className="block text-sm font-medium mb-1">Company</label>
+                        <select name="company" value={formData.company} onChange={handleInputChange} className="w-full px-3 py-2 border rounded">
+                          <option value="">Select Company</option>
+                          {companyNames.map(name => <option key={name} value={name}>{name}</option>)}
+                        </select>
                     </div>
                     <div className="mb-6">
                         <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">User Role</label>

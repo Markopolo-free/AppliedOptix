@@ -1,0 +1,30 @@
+{
+  "clientName": "AppliedOptix",
+  "branding": {
+    "logo": "/logo.jpg",
+    "siteName": "Staff Portal",
+    "primaryColor": "#3b82f6",
+    "secondaryColor": "#2563eb",
+    "accentColor": "#60a5fa",
+    "backgroundColor": "#f8fafc",
+    "textPrimary": "#1f2937",
+    "textSecondary": "#6b7280",
+    "successColor": "#10b981",
+    "errorColor": "#ef4444"
+  },
+  "pages": {
+    "dashboard": {
+      "title": "Dashboard",
+      "statCards": [
+        { "title": "Total Users", "value": "1,245" },
+        { "title": "Active Campaigns", "value": "18" },
+        { "title": "Total Revenue (EUR)", "value": "€86,540" },
+        { "title": "Service Usage", "value": "9,876 trips" }
+      ]
+    }
+  },
+  "colorPalette": [
+    "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", 
+    "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#6366f1"
+  ]
+}
