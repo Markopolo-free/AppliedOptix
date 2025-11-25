@@ -1,8 +1,9 @@
-import Modal from 'react-modal';
-import React, { useState, useEffect } from 'react';
-import { useTheme, ThemeConfig, defaultTheme } from '../contexts/ThemeContext';
-import { useAuth } from '../contexts/AuthContext';
-import { logAudit } from '../services/auditService';
+  import Modal from 'react-modal';
+  import React, { useState, useEffect } from 'react';
+  import { useTheme, ThemeConfig, defaultTheme } from '../contexts/ThemeContext';
+  import { useAuth } from '../contexts/AuthContext';
+  import { logAudit } from '../services/auditService';
+
 
 const ThemeConfigurator: React.FC = () => {
   const { themeLibrary, activeTheme, setActiveTheme, updateTheme, resetTheme } = useTheme();
@@ -20,6 +21,11 @@ const ThemeConfigurator: React.FC = () => {
     setTheme(activeTheme);
     setThemeName(activeTheme.themeName || '');
   }, [activeTheme]);
+
+  const handleResetTheme = async () => {
+    setTheme(defaultTheme);
+    setHasChanges(true);
+  };
 
   const updateColor = (key: keyof ThemeConfig['branding'], value: string) => {
     setTheme({
@@ -78,26 +84,28 @@ const ThemeConfigurator: React.FC = () => {
     }
   };
 
-  const handleNameModalSave = () => {
+  const handleNameModalSave = async () => {
     setShowNameModal(false);
     if (pendingSave && themeName.trim()) {
       setPendingSave(false);
-      saveTheme();
-    }
-  };
-
-  const handleResetTheme = async () => {
-    if (!window.confirm('Are you sure you want to reset to the default theme? This cannot be undone.')) {
-      return;
-    }
-    
-    setIsSaving(true);
-    try {
-      await resetTheme();
-      setHasChanges(false);
-      
-      // Log audit
-      if (currentUser) {
+      setTheme({
+        themeName: 'GreenTransit',
+        clientName: 'GreenTransit',
+        branding: {
+          logo: '/logos/greentransit.jpg',
+          siteName: 'GreenTransit Portal',
+          primaryColor: '#10b981',
+          secondaryColor: '#047857',
+          accentColor: '#22d3ee',
+          backgroundColor: '#f0fdf4',
+          textPrimary: '#1e293b',
+          textSecondary: '#64748b',
+          successColor: '#22c55e',
+          errorColor: '#ef4444',
+        },
+        colorPalette: ['#10b981', '#047857', '#22d3ee', '#f0fdf4', '#1e293b', '#64748b', '#22c55e', '#ef4444'],
+      });
+      try {
         await logAudit({
           userId: currentUser.email,
           userName: currentUser.name,
@@ -107,14 +115,13 @@ const ThemeConfigurator: React.FC = () => {
           entityId: 'theme',
           entityName: 'Application Theme (Reset to Default)'
         });
+        alert('Theme reset to default!');
+      } catch (error) {
+        console.error('Error resetting theme:', error);
+        alert('Failed to reset theme. Please try again.');
+      } finally {
+        setIsSaving(false);
       }
-      
-      alert('Theme reset to default!');
-    } catch (error) {
-      console.error('Error resetting theme:', error);
-      alert('Failed to reset theme. Please try again.');
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -132,6 +139,7 @@ const ThemeConfigurator: React.FC = () => {
   const loadPreset = (presetName: string) => {
     if (presetName === 'greentransit') {
       setTheme({
+        themeName: 'GreenTransit',
         clientName: 'GreenTransit',
         branding: {
           logo: '/logos/greentransit.jpg',

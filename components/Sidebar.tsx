@@ -1,9 +1,10 @@
 import React from 'react';
+import { View } from '../types';
 import { DashboardIcon, UsersIcon, PricingIcon, CampaignIcon, LoyaltyIcon, CloseIcon, ZoneIcon, ServiceIcon, FXCampaignIcon, FXDiscountIcon } from './icons';
 import { useAuth } from '../contexts/AuthContext';
 import { logAudit } from '../services/auditService';
 
-type View = 'dashboard' | 'users' | 'services' | 'pricing' | 'campaigns' | 'loyalty' | 'zones' | 'theme' | 'reference' | 'audit' | 'fxpricing' | 'discountgroups' | 'fxcampaigns' | 'fxdiscountoptions' | 'dataextract';
+// View type now imported from types.ts
 
 interface SidebarProps {
   currentView: View;
@@ -77,6 +78,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, isSideba
     { view: 'reference', label: '📚 Reference Data', icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg> },
     { view: 'audit', label: '📊 Audit Log', icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg> },
     { view: 'dataextract', label: '🗃️ Data Extraction', icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2" stroke="currentColor" strokeWidth="2" fill="none"/><path d="M3 7V5a2 2 0 012-2h14a2 2 0 012 2v2" stroke="currentColor" strokeWidth="2" fill="none"/></svg> },
+    // Simulation main button
+    { view: 'simulation', label: '🧮 Simulation', icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" strokeWidth="2" fill="none"/><path d="M8 8h8M8 12h8M8 16h8" stroke="currentColor" strokeWidth="2" fill="none"/></svg> },
   ];
 
   const handleLogoutClick = (e: React.MouseEvent) => {
@@ -85,7 +88,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, isSideba
   };
 
   return (
-    <>
+    <div>
         <div className={`fixed inset-y-0 left-0 z-30 w-64 px-4 py-5 overflow-y-auto bg-gray-800 transition-transform duration-300 ease-in-out transform lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center">
@@ -99,13 +102,51 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, isSideba
 
         <nav className="mt-10 pb-24">
           {navItems.map(item => (
-            <NavLink
-              key={item.view}
-              icon={item.icon}
-              label={item.label}
-              isActive={currentView === item.view}
-              onClick={() => handleNavClick(item.view as View)}
-            />
+            item.view === 'simulation' ? (
+              <React.Fragment key="simulation-group">
+                <NavLink
+                  key={item.view}
+                  icon={item.icon}
+                  label={item.label}
+                  isActive={currentView === item.view || ['customerManager','customerActivityManager','calculatorService'].includes(currentView)}
+                  onClick={() => handleNavClick(item.view as View)}
+                />
+                {/* Simulation submenu */}
+                {currentView === 'simulation' || ['customerManager','customerActivityManager','calculatorService'].includes(currentView) ? (
+                  <div className="ml-6 mt-2 space-y-1">
+                    <NavLink
+                      key="customerManager"
+                      icon={<UsersIcon />}
+                      label="Customers"
+                      isActive={currentView === 'customerManager'}
+                      onClick={() => handleNavClick('customerManager')}
+                    />
+                    <NavLink
+                      key="customerActivityManager"
+                      icon={<ServiceIcon />}
+                      label="Customer Activities"
+                      isActive={currentView === 'customerActivityManager'}
+                      onClick={() => handleNavClick('customerActivityManager')}
+                    />
+                    <NavLink
+                      key="calculatorService"
+                      icon={<PricingIcon />}
+                      label="Pricing Calculator"
+                      isActive={currentView === 'calculatorService'}
+                      onClick={() => handleNavClick('calculatorService')}
+                    />
+                  </div>
+                ) : null}
+              </React.Fragment>
+            ) : (
+              <NavLink
+                key={item.view}
+                icon={item.icon}
+                label={item.label}
+                isActive={currentView === item.view}
+                onClick={() => handleNavClick(item.view as View)}
+              />
+            )
           ))}
 
           {/* Logout as last menu item */}
@@ -124,19 +165,19 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, isSideba
           <div className="mt-4">
             <NavLink
               icon={<FXCampaignIcon />}
-              label={<span className="text-yellow-400">FX Campaigns</span>}
+              label="FX Campaigns"
               isActive={currentView === 'fxcampaigns'}
               onClick={() => handleNavClick('fxcampaigns')}
             />
             <NavLink
               icon={<FXDiscountIcon />}
-              label={<span className="text-yellow-400">FX Discount Groups</span>}
+              label="FX Discount Groups"
               isActive={currentView === 'fxdiscountoptions'}
               onClick={() => handleNavClick('fxdiscountoptions')}
             />
             <NavLink
               icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>}
-              label={<span className="text-yellow-400">FX Pricing</span>}
+              label="FX Pricing"
               isActive={currentView === 'fxpricing'}
               onClick={() => handleNavClick('fxpricing')}
             />
@@ -144,7 +185,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, isSideba
         </nav>
       </div>
       {isSidebarOpen && <div className="fixed inset-0 bg-black opacity-50 z-20 lg:hidden" onClick={() => setSidebarOpen(false)}></div>}
-    </>
+    </div>
   );
 };
 

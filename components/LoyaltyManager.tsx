@@ -34,7 +34,14 @@ const LoyaltyManager: React.FC = () => {
     const unsubscribe = onValue(citiesRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        setCities(Object.entries(data).map(([id, value]) => ({ id, ...(typeof value === 'object' ? value : {}) })));
+        setCities(Object.entries(data).map(([id, value]) => {
+          const v = value as any;
+          return {
+            id,
+            name: v.name || '',
+            population: v.population || 0
+          };
+        }));
       }
     });
     return () => unsubscribe();
@@ -46,7 +53,14 @@ const LoyaltyManager: React.FC = () => {
     const unsubscribe = onValue(eventsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        setTriggerEvents(Object.entries(data).map(([id, ev]) => ({ id, ...(typeof ev === 'object' ? ev : {}) })));
+        setTriggerEvents(Object.entries(data).map(([id, ev]) => {
+          const e = ev as any;
+          return {
+            id,
+            value: e.value || '',
+            label: e.label || ''
+          };
+        }));
       } else {
         setTriggerEvents([]);
       }
@@ -62,7 +76,32 @@ const LoyaltyManager: React.FC = () => {
       const snapshot = await get(programsRef);
       if (snapshot.exists()) {
         const data = snapshot.val();
-        setPrograms(Object.entries(data).map(([id, value]) => ({ id, ...(typeof value === 'object' ? value : {}) })));
+        setPrograms(
+          Object.entries(data).map(([id, value]) => {
+            const v = value as any;
+            return {
+              id,
+              name: v.name || '',
+              description: v.description || '',
+              cityName: v.cityName || '',
+              pointsPerEuro: v.pointsPerEuro || 0,
+              maxPointsPerUser: v.maxPointsPerUser || 0,
+              totalPointsAvailable: v.totalPointsAvailable || 0,
+              pointsConsumed: v.pointsConsumed || 0,
+              startDate: v.startDate || '',
+              endDate: v.endDate || '',
+              triggerEvent: v.triggerEvent || '',
+              status: v.status || '',
+              makerName: v.makerName || '',
+              makerEmail: v.makerEmail || '',
+              makerTimestamp: v.makerTimestamp || '',
+              checkerEmail: v.checkerEmail || '',
+              checkerTimestamp: v.checkerTimestamp || '',
+              lastModifiedBy: v.lastModifiedBy || '',
+              lastModifiedAt: v.lastModifiedAt || '',
+            };
+          })
+        );
       } else {
         setPrograms([]);
       }
@@ -128,8 +167,8 @@ const LoyaltyManager: React.FC = () => {
         // Audit log for update
         const changes = calculateChanges(editingProgram, programData);
         await logAudit({
-          userId: currentUser?.uid || 'admin',
-          userName: currentUser?.displayName || 'Admin',
+          userId: currentUser?.id || 'admin',
+          userName: currentUser?.name || 'Admin',
           userEmail: currentUser?.email || 'admin',
           action: 'update',
           entityType: 'loyalty',
@@ -141,8 +180,8 @@ const LoyaltyManager: React.FC = () => {
         const newRef = await push(ref(db, 'loyaltyPrograms'), programData);
         // Audit log for create
         await logAudit({
-          userId: currentUser?.uid || 'admin',
-          userName: currentUser?.displayName || 'Admin',
+          userId: currentUser?.id || 'admin',
+          userName: currentUser?.name || 'Admin',
           userEmail: currentUser?.email || 'admin',
           action: 'create',
           entityType: 'loyalty',
@@ -163,8 +202,8 @@ const LoyaltyManager: React.FC = () => {
       await remove(ref(db, `loyaltyPrograms/${programId}`));
       // Audit log for delete
       await logAudit({
-        userId: currentUser?.uid || 'admin',
-        userName: currentUser?.displayName || 'Admin',
+        userId: currentUser?.id || 'admin',
+        userName: currentUser?.name || 'Admin',
         userEmail: currentUser?.email || 'admin',
         action: 'delete',
         entityType: 'loyalty',

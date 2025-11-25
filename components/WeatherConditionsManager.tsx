@@ -13,7 +13,18 @@ const WeatherConditionsManager: React.FC = () => {
     const unsubscribe = onValue(conditionsRef, (snapshot) => {
       const data = snapshot.val() || {};
   const arr = Object.entries(data).map(([id, cond]) => ({ id, ...(typeof cond === 'object' && cond !== null ? cond : {}) }));
-      setConditions(arr);
+      setConditions(arr.map(c => {
+        const cond = c as any;
+        return {
+          id: cond.id,
+          name: cond.name || '',
+          description: cond.description || '',
+          icon: cond.icon || '',
+          severity: cond.severity || '',
+          lastModifiedBy: cond.lastModifiedBy || '',
+          lastModifiedAt: cond.lastModifiedAt || ''
+        };
+      }));
     });
     return () => unsubscribe();
   }, []);

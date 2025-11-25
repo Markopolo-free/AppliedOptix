@@ -78,7 +78,7 @@ const BundledPricingManager: React.FC = () => {
                 <tr><td colSpan={7} className="text-center py-10 text-gray-500">No bundles found.</td></tr>
               ) : (
                 bundles.map(bundle => (
-                  <tr key={bundle.id || JSON.stringify(bundle)}>
+                  <tr key={bundle.id ? String(bundle.id) : `bundle-${bundle.name || 'unknown'}`}> 
                     <td className="px-6 py-4 font-semibold text-primary-700">Bundle</td>
                     <td className="px-6 py-4 font-semibold">{bundle.name}</td>
                     <td className="px-6 py-4 whitespace-pre-line break-words max-w-xs align-top">{bundle.description}</td>

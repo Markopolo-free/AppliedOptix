@@ -537,8 +537,8 @@ const PricingManager: React.FC = () => {
                                         <td className="px-6 py-4 text-gray-700">
                                             {rule.serviceTypeEntries && rule.serviceTypeEntries.length > 0 ? (
                                                 <div className="flex flex-col gap-1">
-                                                    {rule.serviceTypeEntries.map((entry, idx) => (
-                                                        <div key={idx} className="text-sm">
+                                                    {rule.serviceTypeEntries.map((entry) => (
+                                                        <div key={entry.serviceTypeId} className="text-sm">
                                                             <div className="font-medium">{entry.serviceTypeName}</div>
                                                             {entry.provider && (
                                                                 <div className="text-xs text-gray-500">

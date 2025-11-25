@@ -54,7 +54,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
         if (validateCredentials(email, password)) {
           const user = await getUserByEmail(email);
           if (user) {
-            setCurrentUser({ email: user.email, name: user.name, role: user.role, profilePicture: user.profilePicture });
+            setCurrentUser({ id: user.id || user.email, email: user.email, name: user.name, role: user.role, profilePicture: user.profilePicture });
             await logAudit({
               userId: user.email,
               userName: user.name,

@@ -253,8 +253,8 @@ const ReferenceDataManager: React.FC = () => {
                           </td>
                         </tr>
                       )}
-                      {cities.map((item, idx) => (
-                        <tr key={item.id || `${item.name}-${idx}` || JSON.stringify(item)}>
+                      {(cities as ReferenceItem[]).map((item, idx) => (
+                        <tr key={item.id ? String(item.id) : `${item.name || 'unknown'}-${idx}`}> 
                           <td>{item.country}</td>
                           <td>{item.name}</td>
                           <td>
@@ -292,7 +292,7 @@ const ReferenceDataManager: React.FC = () => {
                   ));
                 })()
               : items.map((item, idx) => (
-                  <tr key={item.id || `${item.name}-${idx}` || JSON.stringify(item)}>
+                  <tr key={item.id ? String(item.id) : `${item.name || 'unknown'}-${idx}`}> 
                     <td>{item.name}</td>
                     <td>{item.description}</td>
                     <td>

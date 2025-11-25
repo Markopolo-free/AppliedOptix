@@ -3,6 +3,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import LandingPage from './components/LandingPage';
 import Sidebar from './components/Sidebar';
+import { View } from './types';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
 
@@ -23,8 +24,11 @@ const FXDiscountOptionManager = lazy(() => import('./components/FXDiscountOption
 const DataExtractionManager = lazy(() => import('./components/DataExtractionManager'));
 const BundledPricingManager = lazy(() => import('./components/BundledPricingManager'));
 const CompanyDetailsManager = lazy(() => import('./components/CompanyDetailsManager'));
+const CustomerManager = lazy(() => import('./components/CustomerManager'));
+const CustomerActivityManager = lazy(() => import('./components/CustomerActivityManager'));
+const CalculatorService = lazy(() => import('./components/CalculatorService.tsx'));
 
-type View = 'dashboard' | 'users' | 'services' | 'pricing' | 'campaigns' | 'loyalty' | 'bundledpricing' | 'zones' | 'theme' | 'reference' | 'audit' | 'fxpricing' | 'discountgroups' | 'fxcampaigns' | 'fxdiscountoptions' | 'dataextract' | 'companyDetails';
+// View type now imported from types.ts
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>('dashboard');
@@ -38,41 +42,49 @@ const App: React.FC = () => {
   const renderView = () => {
     switch (currentView) {
       case 'dashboard':
-        return <><Dashboard /></>;
+        return <Dashboard />;
       case 'users':
-        return <><UserManager /></>;
+        return <UserManager />;
       case 'services':
-        return <><ServiceManager /></>;
+        return <ServiceManager />;
       case 'pricing':
-        return <><PricingManager /></>;
+        return <PricingManager />;
       case 'zones':
-        return <><ZoneManager /></>;
+        return <ZoneManager />;
       case 'campaigns':
-        return <><CampaignManager /></>;
+        return <CampaignManager />;
       case 'loyalty':
-        return <><LoyaltyManager /></>;
+        return <LoyaltyManager />;
       case 'theme':
-        return <><ThemeConfigurator /></>;
+        return <ThemeConfigurator />;
       case 'reference':
-        return <><ReferenceDataManager /></>;
+        return <ReferenceDataManager />;
       case 'audit':
-        return <><AuditManager /></>;
+        return <AuditManager />;
       case 'fxpricing':
-        return <><FXPricingManager /></>;
+        return <FXPricingManager />;
       case 'discountgroups':
-        return <><UserDiscountGroupManager /></>;
+        return <UserDiscountGroupManager />;
       case 'fxcampaigns':
-        return <><FXCampaignManager /></>;
+        return <FXCampaignManager />;
       case 'fxdiscountoptions':
-        return <><FXDiscountOptionManager /></>;
+        return <FXDiscountOptionManager />;
       case 'dataextract':
-        return <><DataExtractionManager /></>;
+        return <DataExtractionManager />;
       case 'bundledpricing':
-        return <><BundledPricingManager /></>;
+        return <BundledPricingManager />;
       case 'companyDetails':
-        return <><CompanyDetailsManager /></>;
+        return <CompanyDetailsManager />;
+      case 'simulation':
+        return <div className="space-y-6"><h1 className="text-3xl font-bold text-gray-800 mb-4">Simulation</h1><p>Select a submenu: Customers, Activities, or Pricing Calculator.</p></div>;
+      case 'customerManager':
+        return <CustomerManager />;
+      case 'customerActivityManager':
+        return <CustomerActivityManager />;
+      case 'calculatorService':
+        return <CalculatorService />;
       default:
-        return <><Dashboard /></>;
+        return <Dashboard />;
     }
   };
 

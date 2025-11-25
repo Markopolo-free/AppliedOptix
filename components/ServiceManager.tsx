@@ -12,6 +12,7 @@ const initialNewServiceState = {
     price: '',
     minChargeAmount: '0.00',
     currency: 'EUR',
+    pricingBasis: 'Distance (km)',
     status: ServiceStatus.Available,
     country: '',
     location: '',
@@ -162,6 +163,7 @@ const ServiceManager: React.FC = () => {
             price: String(service.price),
             minChargeAmount: service.minChargeAmount !== undefined ? String(service.minChargeAmount) : '0.00',
             currency: service.currency,
+            pricingBasis: service.pricingBasis || 'Distance (km)',
             status: service.status,
             country: service.country || '',
             location: service.location,
@@ -200,6 +202,7 @@ const ServiceManager: React.FC = () => {
             ...formData,
             price: parseFloat(formData.price) || 0,
             minChargeAmount: parseFloat((formData as any).minChargeAmount) || 0,
+            pricingBasis: formData.pricingBasis || 'Distance (km)',
             lastModifiedBy: 'usr_admin',
             lastModifiedAt: serverTimestamp(),
         };
@@ -338,6 +341,7 @@ const ServiceManager: React.FC = () => {
                                 <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">City</th>
                                 <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Min Charge</th>
                                 <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Price</th>
+                                <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Pricing Basis</th>
                                    <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Effective Date</th>
                                 <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Status</th>
                                 <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Last Modified</th>
@@ -364,6 +368,7 @@ const ServiceManager: React.FC = () => {
                                         <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">
                                             {new Intl.NumberFormat('de-DE', { style: 'currency', currency: service.currency }).format(service.price)}
                                         </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-gray-700">{service.pricingBasis || 'Distance (km)'}</td>
                                            <td className="px-6 py-4 whitespace-nowrap text-gray-700">
                                                {service.effectiveDate ? new Date(service.effectiveDate).toLocaleDateString() : 'N/A'}
                                            </td>
@@ -453,6 +458,13 @@ const ServiceManager: React.FC = () => {
                                 <div>
                                     <label htmlFor="price" className="block text-sm font-medium text-gray-700">Price</label>
                                     <input type="number" name="price" id="price" value={formData.price} onChange={handleInputChange} step="0.01" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required />
+                                </div>
+                                <div>
+                                    <label htmlFor="pricingBasis" className="block text-sm font-medium text-gray-700">Pricing Basis</label>
+                                    <select name="pricingBasis" id="pricingBasis" value={formData.pricingBasis} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required>
+                                        <option value="Distance (km)">Distance (Km)</option>
+                                        <option value="Time (hour)">Time (Hrs)</option>
+                                    </select>
                                 </div>
                                 <div>
                                     <label htmlFor="minChargeAmount" className="block text-sm font-medium text-gray-700">Minimum Charge Amount (optional)</label>

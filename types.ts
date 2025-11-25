@@ -1,3 +1,50 @@
+export type View =
+    | 'dashboard'
+    | 'users'
+    | 'services'
+    | 'pricing'
+    | 'campaigns'
+    | 'loyalty'
+    | 'zones'
+    | 'theme'
+    | 'reference'
+    | 'audit'
+    | 'fxpricing'
+    | 'discountgroups'
+    | 'fxcampaigns'
+    | 'fxdiscountoptions'
+    | 'dataextract'
+    | 'simulation'
+    | 'customerManager'
+    | 'customerActivityManager'
+    | 'calculatorService'
+    | 'bundledpricing'
+    | 'companyDetails';
+export interface Customer {
+    id: string;
+    name: string;
+    email: string;
+    country?: string;
+    city?: string;
+    userGroup?: string;
+    zone?: string;
+    createdAt: string;
+    lastModifiedBy?: string;
+    lastModifiedAt?: string;
+}
+
+export interface CustomerActivity {
+    id: string;
+    customerId: string;
+    serviceId: string;
+    serviceType: string;
+    country: string;
+    city: string;
+    zone?: string;
+    pricingBasis: PricingBasis;
+    distanceTravelled?: number;
+    timeUsed?: number;
+}
 export interface Badge {
     id: string;
     name: string;
@@ -26,6 +73,7 @@ export interface Service {
     price: number;
     minChargeAmount?: number; // Optional minimum charge amount (default 0.00)
     currency: string;
+    pricingBasis: PricingBasis;
     status: ServiceStatus;
     country: string; // Country from reference data
     location: string; // City from reference data (filtered by country)
@@ -102,6 +150,7 @@ export interface Campaign {
     endDate: string;
     countryId?: string;
     cityId?: string;
+    zoneId?: string; // Link to a pricing zone
     // Qualifying criteria for unlocking rewards within the campaign
     hasQualifyingCriteria?: 'Y' | 'N';
     // New: How to combine multiple criteria when more than one is provided

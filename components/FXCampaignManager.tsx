@@ -193,7 +193,7 @@ const FXCampaignManager: React.FC = () => {
       cityId: campaign.cityId || '',
       currency: campaign.currency,
       serviceItem: campaign.serviceItem,
-      discountType: campaign.discountType,
+      discountType: campaign.discountType as any,
       discountAmount: campaign.discountAmount,
       qualifyingEvent: campaign.qualifyingEvent,
       startDate: campaign.startDate,
@@ -229,7 +229,7 @@ const FXCampaignManager: React.FC = () => {
       cityId: campaign.cityId || '',
       currency: campaign.currency,
       serviceItem: campaign.serviceItem,
-      discountType: campaign.discountType,
+      discountType: 'Cashback',
       discountAmount: campaign.discountAmount,
       qualifyingEvent: campaign.qualifyingEvent,
       startDate: getTodayString(), // Reset to today
