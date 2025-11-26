@@ -44,6 +44,7 @@ export interface CustomerActivity {
     pricingBasis: PricingBasis;
     distanceTravelled?: number;
     timeUsed?: number;
+    timestamp: string; // ISO date string
 }
 export interface Badge {
     id: string;

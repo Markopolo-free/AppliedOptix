@@ -118,15 +118,14 @@ const CustomerActivityManager: React.FC = () => {
 
   const handleOpenModalForEdit = (activity: CustomerActivity) => {
     setEditingActivity(activity);
-    const customer = customers.find(c => c.id === activity.customerId);
     setFormData({
       customerId: activity.customerId,
       serviceId: activity.serviceId,
       value: activity.pricingBasis === 'Time (hour)' ? String(activity.timeUsed ?? '') : String(activity.distanceTravelled ?? ''),
       pricingBasis: activity.pricingBasis,
-      country: customer?.country ?? '',
-      city: customer?.city ?? '',
-      zone: customer?.zone ?? '',
+      country: activity.country ?? '',
+      city: activity.city ?? '',
+      zone: activity.zone ?? '',
     });
     setIsModalOpen(true);
   };
@@ -143,15 +142,15 @@ const CustomerActivityManager: React.FC = () => {
         alert('Selected service not found.');
         return;
       }
-      const selectedCustomer = customers.find(c => c.id === formData.customerId);
       const activityData: any = {
         customerId: formData.customerId,
         serviceId: formData.serviceId,
         serviceType: selectedService.type,
-        country: selectedCustomer?.country || '',
-        city: selectedCustomer?.city || '',
-        zone: selectedCustomer?.zone || '',
+        country: formData.country || '',
+        city: formData.city || '',
+        zone: formData.zone || '',
         pricingBasis: formData.pricingBasis,
+        timestamp: new Date().toISOString(),
       };
       if (formData.pricingBasis === 'Time (hour)') {
         activityData.timeUsed = parseFloat(formData.value) || 0;

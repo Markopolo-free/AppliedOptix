@@ -433,7 +433,7 @@ const ServiceManager: React.FC = () => {
                                         required
                                     >
                                         <option value="">Select Country...</option>
-                                        {countries.map(country => <option key={country} value={country}>{country}</option>)}
+                                        {countries.map((country, idx) => <option key={idx} value={country}>{country}</option>)}
                                     </select>
                                 </div>
                                 <div>
