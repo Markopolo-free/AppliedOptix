@@ -29,6 +29,7 @@ const CampaignManager: React.FC = () => {
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const { currentUser } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCloning, setIsCloning] = useState(false);
 
   useEffect(() => {
     // Services
@@ -99,12 +100,57 @@ const CampaignManager: React.FC = () => {
   const handleOpenModalForAdd = () => {
     setEditingCampaign(null);
     setNewCampaign(initialNewCampaignState);
+    setIsCloning(false);
     setIsModalOpen(true);
   };
   const handleSaveCampaign = (e: React.FormEvent) => {
     e.preventDefault();
-    // Implement save logic here
+    // Duplicate validation
+    function arraysEqual(a: any[], b: any[]) {
+      if (a.length !== b.length) return false;
+      return a.every((v, i) => v === b[i]);
+    }
+    const duplicate = campaigns.some(camp =>
+      camp.id !== (editingCampaign && editingCampaign.id) &&
+      camp.name === newCampaign.name &&
+      camp.cityId === newCampaign.cityId &&
+      camp.countryId === newCampaign.countryId &&
+      arraysEqual(camp.serviceIds, newCampaign.serviceIds || [])
+    );
+    if (duplicate) {
+      alert('A campaign with the same name, city, country, and services already exists. Please change the values to avoid duplicates.');
+      return;
+    }
+    // Save new or edited campaign
+    if (editingCampaign) {
+      // Update existing campaign
+      const campaignRef = ref(db, `campaigns/${editingCampaign.id}`);
+      update(campaignRef, { ...editingCampaign, ...newCampaign });
+    } else {
+      // Add new campaign (including clones)
+      const campaignRef = ref(db, 'campaigns');
+      push(campaignRef, { ...newCampaign });
+    }
     setIsModalOpen(false);
+    setIsCloning(false);
+    // Force campaign list refresh after save
+    setTimeout(() => {
+      const campaignsRef = ref(db, 'campaigns');
+      onValue(campaignsRef, (snapshot) => {
+        const data = snapshot.val() || {};
+        // Relaxed type guard: only require id, name, and serviceIds
+        function isValidCampaign(obj: any): obj is Campaign {
+          return obj && typeof obj === 'object' &&
+            typeof obj.id === 'string' &&
+            typeof obj.name === 'string' &&
+            Array.isArray(obj.serviceIds);
+        }
+        const arr = Object.entries(data)
+          .map(([id, item]) => (typeof item === 'object' && item !== null ? { ...item, id } : null))
+          .filter(isValidCampaign);
+        setCampaigns(arr);
+      }, { onlyOnce: true });
+    }, 500);
   };
   const closeModal = () => setIsModalOpen(false);
 
@@ -173,9 +219,23 @@ const CampaignManager: React.FC = () => {
                           onClick={() => {
                             setEditingCampaign(campaign);
                             setNewCampaign(campaign);
+                            setIsCloning(false);
                             setIsModalOpen(true);
                           }}
                         >Edit</button>
+                        <button
+                          className="px-2 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 mr-2"
+                          onClick={() => {
+                            // Clone logic: copy campaign, clear id, update name
+                            const clone = { ...campaign };
+                            delete clone.id;
+                            clone.name = `${campaign.name} Copy`;
+                            setEditingCampaign(null);
+                            setNewCampaign(clone);
+                            setIsCloning(true);
+                            setIsModalOpen(true);
+                          }}
+                        >Clone</button>
                         <button
                           className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
                           onClick={async () => {
@@ -206,9 +266,58 @@ const CampaignManager: React.FC = () => {
         {isModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-40 flex justify-center items-center p-4">
             <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg max-h-full overflow-y-auto">
-              <h2 className="text-2xl font-bold mb-6 text-gray-800">{editingCampaign ? 'Edit Campaign' : 'Add New Campaign'}</h2>
+              <h2 className="text-2xl font-bold mb-6 text-gray-800">{isCloning ? 'Clone Campaign' : editingCampaign ? 'Edit Campaign' : 'Add New Campaign'}</h2>
               <form onSubmit={handleSaveCampaign}>
-                {/* ...existing code for form fields... */}
+                {/* Campaign form fields for editing/clone/add */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Name</label>
+                    <input type="text" value={newCampaign.name || ''} onChange={e => setNewCampaign({ ...newCampaign, name: e.target.value })} className="w-full px-3 py-2 border rounded" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Description</label>
+                    <input type="text" value={newCampaign.description || ''} onChange={e => setNewCampaign({ ...newCampaign, description: e.target.value })} className="w-full px-3 py-2 border rounded" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Country</label>
+                    <select value={newCampaign.countryId || ''} onChange={e => setNewCampaign({ ...newCampaign, countryId: e.target.value })} className="w-full px-3 py-2 border rounded" required>
+                      <option value="">Select Country</option>
+                      {countries.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">City</label>
+                    <select value={newCampaign.cityId || ''} onChange={e => setNewCampaign({ ...newCampaign, cityId: e.target.value })} className="w-full px-3 py-2 border rounded" required>
+                      <option value="">Select City</option>
+                      {cities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Services</label>
+                    <select multiple value={newCampaign.serviceIds || []} onChange={e => setNewCampaign({ ...newCampaign, serviceIds: Array.from(e.target.selectedOptions, opt => opt.value) })} className="w-full px-3 py-2 border rounded">
+                      {serviceTypes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Discount Type</label>
+                    <select value={newCampaign.discountType || DiscountType.Percentage} onChange={e => setNewCampaign({ ...newCampaign, discountType: e.target.value as DiscountType })} className="w-full px-3 py-2 border rounded">
+                      <option value={DiscountType.Percentage}>Percentage</option>
+                      <option value={DiscountType.Fixed}>Fixed Amount</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Discount Value</label>
+                    <input type="number" value={newCampaign.discountValue || 0} onChange={e => setNewCampaign({ ...newCampaign, discountValue: Number(e.target.value) })} className="w-full px-3 py-2 border rounded" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Start Date</label>
+                    <input type="date" value={newCampaign.startDate || ''} onChange={e => setNewCampaign({ ...newCampaign, startDate: e.target.value })} className="w-full px-3 py-2 border rounded" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">End Date</label>
+                    <input type="date" value={newCampaign.endDate || ''} onChange={e => setNewCampaign({ ...newCampaign, endDate: e.target.value })} className="w-full px-3 py-2 border rounded" />
+                  </div>
+                </div>
                 <div className="mt-8 flex justify-end space-x-4">
                   <button type="button" onClick={closeModal} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Cancel</button>
                   <button type="submit" className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">{editingCampaign ? 'Save Changes' : 'Save Campaign'}</button>

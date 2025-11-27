@@ -82,7 +82,7 @@ const App: React.FC = () => {
       case 'customerActivityManager':
         return <CustomerActivityManager />;
       case 'calculatorService':
-        return <CalculatorService />;
+        return <CalculatorService setCurrentView={setCurrentView} />;
       default:
         return <Dashboard />;
     }
