@@ -24,13 +24,14 @@ interface ReferenceItem {
   name?: string;
   description?: string;
   iconUrl?: string;
-  country?: string;
+  country?: string; // Used for cities and loyaltyTriggerEvents
   population?: number;
   dateAdded?: string;
   addedBy?: string;
   // For loyaltyTriggerEvents
-  value?: string;
-  label?: string;
+  // Removed value/label for loyaltyTriggerEvents
+  event?: string;
+  city?: string;
 }
 
 const ReferenceDataManager: React.FC = () => {
@@ -60,6 +61,7 @@ const ReferenceDataManager: React.FC = () => {
   const [formData, setFormData] = useState<ReferenceItem>({ id: '', name: '', description: '', iconUrl: '' });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [referenceCountries, setReferenceCountries] = useState<string[]>([]);
+  const [referenceCities, setReferenceCities] = useState<{ name: string; country: string }[]>([]);
 
   useEffect(() => {
     // Map category to correct Firebase path
@@ -92,16 +94,22 @@ const ReferenceDataManager: React.FC = () => {
   }, [category]);
 
   useEffect(() => {
-    // Load reference countries for city dropdown
-    if (category === 'cities') {
+    // Load reference countries and cities for dropdowns in cities and loyaltyTriggerEvents
+    if (category === 'cities' || category === 'loyaltyTriggerEvents') {
       const db = getDatabase();
       const countriesRef = ref(db, 'referenceCountries');
       const unsubCountries = onValue(countriesRef, (snapshot) => {
         const data = snapshot.val() || {};
         setReferenceCountries(Object.values(data).map((item: any) => item.name).filter(Boolean));
       });
+      const citiesRef = ref(db, 'referenceCities');
+      const unsubCities = onValue(citiesRef, (snapshot) => {
+        const data = snapshot.val() || {};
+        setReferenceCities(Object.values(data).map((item: any) => ({ name: item.name, country: item.country })).filter(c => c.name && c.country));
+      });
       return () => {
         unsubCountries();
+        unsubCities();
       };
     }
   }, [category]);
@@ -128,8 +136,8 @@ const ReferenceDataManager: React.FC = () => {
   const handleAdd = () => {
     // Validation: Prevent blank records for all types
     if (category === 'loyaltyTriggerEvents') {
-      if (!formData.value?.trim() || !formData.label?.trim()) {
-        alert('Value and Label are required.');
+      if (!formData.event?.trim() || !formData.country?.trim() || !formData.city?.trim()) {
+        alert('Event, Country, and City are required.');
         return;
       }
     } else {
@@ -150,9 +158,9 @@ const ReferenceDataManager: React.FC = () => {
     if (!refPath) return;
     const dbRef = ref(db, refPath);
     if (category === 'loyaltyTriggerEvents') {
-      // Only push value and label for trigger events
-      push(dbRef, { value: formData.value, label: formData.label });
-      setFormData({ id: '', value: '', label: '' });
+      // Push only event, country, city
+      push(dbRef, { event: formData.event, country: formData.country, city: formData.city });
+      setFormData({ id: '', event: '', country: '', city: '' });
     } else {
       push(dbRef, formData);
       setFormData({ id: '', name: '', description: '', iconUrl: '' });
@@ -162,7 +170,19 @@ const ReferenceDataManager: React.FC = () => {
   const handleEdit = (item: ReferenceItem) => {
     setEditingId(item.id);
     if (category === 'loyaltyTriggerEvents') {
-      setFormData({ id: item.id, value: item.value || '', label: item.label || '' });
+      setFormData({
+        id: item.id,
+        event: item.event || '',
+        country: item.country || '',
+        city: item.city || ''
+      });
+    } else if (category === 'countries') {
+      setFormData({
+        id: item.id,
+        name: item.name || '',
+        description: item.description || '',
+        iconUrl: item.iconUrl || ''
+      });
     } else {
       setFormData(item);
     }
@@ -175,8 +195,12 @@ const ReferenceDataManager: React.FC = () => {
     if (!refPath) return;
     const dbRef = ref(db, refPath);
     if (category === 'loyaltyTriggerEvents') {
-      update(dbRef, { value: formData.value || '', label: formData.label || '' });
-      setFormData({ id: '', value: '', label: '' });
+      update(dbRef, {
+        event: formData.event || '',
+        country: formData.country || '',
+        city: formData.city || ''
+      });
+      setFormData({ id: '', event: '', country: '', city: '' });
     } else {
       update(dbRef, formData);
       setFormData({ id: '', name: '', description: '', iconUrl: '' });
@@ -201,6 +225,9 @@ const ReferenceDataManager: React.FC = () => {
     const dbRef = ref(db, refPath);
     try {
       await remove(dbRef);
+      setEditingId(null);
+      setFormData(category === 'countries' ? { id: '', name: '', description: '', iconUrl: '' } : category === 'loyaltyTriggerEvents' ? { id: '', event: '', country: '', city: '' } : { id: '', name: '', description: '', iconUrl: '' });
+      // Data will refresh automatically via useEffect
       console.log('Delete successful for ID:', id);
     } catch (error) {
       alert('Delete failed: ' + (error?.message || error));
@@ -227,71 +254,109 @@ const ReferenceDataManager: React.FC = () => {
         <table className="min-w-full border mb-4">
           <thead>
             <tr>
-              <th>Country</th>
-              <th>City</th>
-              <th>Icon URL</th>
-              <th>Actions</th>
+              {category === 'loyaltyTriggerEvents' ? (
+                <>
+                  <th>Event</th>
+                  <th>Country</th>
+                  <th>City</th>
+                  <th>Actions</th>
+                </>
+              ) : (
+                <>
+                  <th>Country</th>
+                  <th>City</th>
+                  <th>Icon URL</th>
+                  <th>Actions</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
-            {category === 'cities'
-              ? (() => {
-                  // Group cities by country
-                  const grouped = items.reduce((acc, item) => {
-                    const countryKey = item.country || 'Unknown';
-                    if (!acc[countryKey]) acc[countryKey] = [];
-                    acc[countryKey].push(item);
-                    return acc;
-                  }, {} as Record<string, ReferenceItem[]>);
-                  // Render cities grouped by country
-                  return Object.entries(grouped).map(([country, cities], countryIdx) => (
-                    <React.Fragment key={country}>
-                      {countryIdx > 0 && (
-                        <tr>
-                          <td colSpan={4}>
-                            <hr style={{ border: 'none', borderTop: '3px solid #2563eb', margin: '12px 0' }} />
-                          </td>
-                        </tr>
-                      )}
-                      {(cities as ReferenceItem[]).map((item, idx) => (
-                        <tr key={item.id ? String(item.id) : `${item.name || 'unknown'}-${idx}`}> 
-                          <td>{item.country}</td>
-                          <td>{item.name}</td>
-                          <td>
-                            {item.iconUrl ? (
-                              <span style={{ display: 'inline-block', background: '#fff', borderRadius: '50%', padding: 4 }}>
-                                <img
-                                  src={item.iconUrl}
-                                  alt={item.name || 'icon'}
-                                  style={{ width: 32, height: 32, objectFit: 'contain', borderRadius: '50%', background: '#fff' }}
-                                />
-                              </span>
-                            ) : (
-                              <span className="text-gray-400">No icon</span>
-                            )}
-                          </td>
-                          <td className="space-x-2">
-                            <button
-                              onClick={() => handleEdit(item)}
-                              className="px-3 py-1 rounded bg-blue-500 text-white hover:bg-blue-600 focus:outline-none"
-                              title="Edit"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDelete(item.id)}
-                              className="px-3 py-1 rounded bg-red-500 text-white hover:bg-red-600 focus:outline-none"
-                              title="Delete"
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </React.Fragment>
-                  ));
-                })()
-              : items.map((item, idx) => (
+            {category === 'cities' ? (
+              (() => {
+                // Group cities by country
+                const grouped = items.reduce((acc, item) => {
+                  const countryKey = item.country || 'Unknown';
+                  if (!acc[countryKey]) acc[countryKey] = [];
+                  acc[countryKey].push(item);
+                  return acc;
+                }, {} as Record<string, ReferenceItem[]>);
+                return Object.entries(grouped).map(([country, cities], countryIdx) => (
+                  <React.Fragment key={country}>
+                    {countryIdx > 0 && (
+                      <tr>
+                        <td colSpan={4}>
+                          <hr style={{ border: 'none', borderTop: '3px solid #2563eb', margin: '12px 0' }} />
+                        </td>
+                      </tr>
+                    )}
+                    {cities.map((item, idx) => (
+                      <tr key={item.id ? String(item.id) : `${item.name || 'unknown'}-${idx}`}>
+                        <td>{item.country}</td>
+                        <td>{item.name}</td>
+                        <td>
+                          {item.iconUrl ? (
+                            <span style={{ display: 'inline-block', background: '#fff', borderRadius: '50%', padding: 4 }}>
+                              <img
+                                src={item.iconUrl}
+                                alt={item.name || 'icon'}
+                                style={{ width: 32, height: 32, objectFit: 'contain', borderRadius: '50%', background: '#fff' }}
+                              />
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">No icon</span>
+                          )}
+                        </td>
+                        <td className="space-x-2">
+                          <button
+                            onClick={() => handleEdit(item)}
+                            className="px-3 py-1 rounded bg-blue-500 text-white hover:bg-blue-600 focus:outline-none"
+                            title="Edit"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(item.id)}
+                            className="px-3 py-1 rounded bg-red-500 text-white hover:bg-red-600 focus:outline-none"
+                            title="Delete"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </React.Fragment>
+                ));
+              })()
+            ) : category === 'loyaltyTriggerEvents' ? (
+              <>
+                {items.map((item, idx) => (
+                  <tr key={item.id ? String(item.id) : `${item.event || 'unknown'}-${idx}`}> 
+                    <td>{item.event}</td>
+                    <td>{item.country}</td>
+                    <td>{item.city}</td>
+                    <td className="space-x-2">
+                      <button
+                        onClick={() => handleEdit(item)}
+                        className="px-3 py-1 rounded bg-blue-500 text-white hover:bg-blue-600 focus:outline-none"
+                        title="Edit"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(item.id)}
+                        className="px-3 py-1 rounded bg-red-500 text-white hover:bg-red-600 focus:outline-none"
+                        title="Delete"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </>
+            ) : (
+              <>
+                {items.map((item, idx) => (
                   <tr key={item.id ? String(item.id) : `${item.name || 'unknown'}-${idx}`}> 
                     <td>{item.name}</td>
                     <td>{item.description}</td>
@@ -326,28 +391,63 @@ const ReferenceDataManager: React.FC = () => {
                     </td>
                   </tr>
                 ))}
+              </>
+            )}
           </tbody>
         </table>
         <form onSubmit={e => { e.preventDefault(); editingId ? handleUpdate() : handleAdd(); }}>
           {category === 'loyaltyTriggerEvents' ? (
             <>
               <div>
-                <label className="block text-sm font-medium mb-1">Value</label>
+                <label className="block text-sm font-medium mb-1">Event</label>
                 <input
                   type="text"
-                  value={formData.value || ''}
-                  onChange={e => setFormData({ ...formData, value: e.target.value })}
+                  value={formData.event || ''}
+                  onChange={e => setFormData({ ...formData, event: e.target.value })}
                   className="w-full px-3 py-2 border rounded"
+                  required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Label</label>
-                <input
-                  type="text"
-                  value={formData.label || ''}
-                  onChange={e => setFormData({ ...formData, label: e.target.value })}
+                <label className="block text-sm font-medium mb-1">Country</label>
+                <select
+                  value={formData.country || ''}
+                  onChange={e => {
+                    const selectedCountry = e.target.value;
+                    setFormData(prev => ({ ...prev, country: selectedCountry, city: '' }));
+                  }}
                   className="w-full px-3 py-2 border rounded"
-                />
+                  required
+                >
+                  <option value="">Select Country</option>
+                  {[...new Set(referenceCountries)].map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">City</label>
+                {(() => {
+                  // Debug: print all cities and their country values
+                  console.log('All referenceCities:', referenceCities);
+                  const selectedCountry = (formData.country || '').trim().toLowerCase();
+                  console.log('Selected country:', selectedCountry);
+                  const filteredCities = referenceCities.filter(city =>
+                    city.country && city.country.trim().toLowerCase() === selectedCountry
+                  );
+                  console.log('Filtered cities:', filteredCities);
+                  return (
+                    <select
+                      value={formData.city || ''}
+                      onChange={e => setFormData({ ...formData, city: e.target.value })}
+                      className="w-full px-3 py-2 border rounded"
+                      required
+                    >
+                      <option value="">Select City</option>
+                      {filteredCities.map(city => (
+                        <option key={city.name} value={city.name}>{city.name}</option>
+                      ))}
+                    </select>
+                  );
+                })()}
               </div>
             </>
           ) : (
@@ -409,7 +509,7 @@ const ReferenceDataManager: React.FC = () => {
               {editingId ? 'Update' : 'Add'}
             </button>
             {editingId && (
-              <button type="button" onClick={() => { setEditingId(null); setFormData(category === 'loyaltyTriggerEvents' ? { id: '', value: '', label: '' } : { id: '', name: '', description: '', iconUrl: '' }); }} className="px-4 py-2 bg-gray-300 rounded">
+              <button type="button" onClick={() => { setEditingId(null); setFormData(category === 'loyaltyTriggerEvents' ? { id: '', event: '', country: '', city: '' } : { id: '', name: '', description: '', iconUrl: '' }); }} className="px-4 py-2 bg-gray-300 rounded">
                 Cancel
               </button>
             )}
