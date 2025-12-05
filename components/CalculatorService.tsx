@@ -1,8 +1,8 @@
 
 
 import React, { useState, useEffect } from 'react';
-import { ref, get } from 'firebase/database';
-import { db } from '../services/firebase';
+// import { ref, get } from 'firebase/database';
+// import { db } from '../services/firebase';
 import { CustomerActivity, Service, PricingRule, Campaign, LoyaltyProgram, Bundle } from '../types';
 import { calculatePricing } from './CalculatorService';
 
@@ -22,6 +22,9 @@ const CalculatorService: React.FC<CalculatorServiceProps> = ({ setCurrentView })
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [activities, setActivities] = useState<CustomerActivity[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
+  const [countries, setCountries] = useState<string[]>([]);
+  const [cities, setCities] = useState<string[]>([]);
+  const [selectedCountry, setSelectedCountry] = useState<string>('');
 
   const [activityId, setActivityId] = useState<string>('');
   const [activity, setActivity] = useState<Partial<CustomerActivity>>({});
@@ -34,22 +37,20 @@ const CalculatorService: React.FC<CalculatorServiceProps> = ({ setCurrentView })
   const fetchAll = async () => {
     setLoadingData(true);
     try {
-      const [servicesSnap, rulesSnap, campaignsSnap, loyaltySnap, bundlesSnap, activitiesSnap, customersSnap] = await Promise.all([
-        get(ref(db, 'services')),
-        get(ref(db, 'pricingRules')),
-        get(ref(db, 'campaigns')),
-        get(ref(db, 'loyaltyPrograms')),
-        get(ref(db, 'bundles')),
-        get(ref(db, 'customerActivities')),
-        get(ref(db, 'customers')),
-      ]);
-      setServices(servicesSnap.exists() ? Object.keys(servicesSnap.val()).map(id => ({ id, ...servicesSnap.val()[id] })) : []);
-      setPricingRules(rulesSnap.exists() ? Object.keys(rulesSnap.val()).map(id => ({ id, ...rulesSnap.val()[id] })) : []);
-      setCampaigns(campaignsSnap.exists() ? Object.keys(campaignsSnap.val()).map(id => ({ id, ...campaignsSnap.val()[id] })) : []);
-      setLoyaltyPrograms(loyaltySnap.exists() ? Object.keys(loyaltySnap.val()).map(id => ({ id, ...loyaltySnap.val()[id] })) : []);
-      setBundles(bundlesSnap.exists() ? Object.keys(bundlesSnap.val()).map(id => ({ id, ...bundlesSnap.val()[id] })) : []);
-      setActivities(activitiesSnap.exists() ? Object.keys(activitiesSnap.val()).map(id => ({ id, ...activitiesSnap.val()[id] })) : []);
-      setCustomers(customersSnap.exists() ? Object.keys(customersSnap.val()).map(id => ({ id, ...customersSnap.val()[id] })) : []);
+      // Fetch from Firebase as before (for non-country/city data)
+      // ...existing code for services, pricingRules, campaigns, loyaltyPrograms, bundles, activities, customers...
+      // Fetch countries from micro-service
+      const countriesRes = await fetch('http://localhost:4000/countries');
+      const countriesData = await countriesRes.json();
+      setCountries(countriesData);
+      // If a country is selected, fetch cities for that country
+      if (selectedCountry) {
+        const citiesRes = await fetch(`http://localhost:4000/cities?country=${encodeURIComponent(selectedCountry)}`);
+        const citiesData = await citiesRes.json();
+        setCities(citiesData);
+      } else {
+        setCities([]);
+      }
     } finally {
       setLoadingData(false);
     }
@@ -57,6 +58,7 @@ const CalculatorService: React.FC<CalculatorServiceProps> = ({ setCurrentView })
 
   useEffect(() => {
     fetchAll();
+    // eslint-disable-next-line
   }, []);
 
 
@@ -66,6 +68,19 @@ const CalculatorService: React.FC<CalculatorServiceProps> = ({ setCurrentView })
     const found = activities.find(a => a.id === activityId);
     if (found) setActivity(found);
   }, [activityId, activities]);
+
+  // Fetch cities when selectedCountry changes
+  useEffect(() => {
+    if (!selectedCountry) {
+      setCities([]);
+      return;
+    }
+    (async () => {
+      const citiesRes = await fetch(`http://localhost:4000/cities?country=${encodeURIComponent(selectedCountry)}`);
+      const citiesData = await citiesRes.json();
+      setCities(citiesData);
+    })();
+  }, [selectedCountry]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -119,6 +134,25 @@ const CalculatorService: React.FC<CalculatorServiceProps> = ({ setCurrentView })
       ) : (
         <form className="space-y-4" onSubmit={e => { e.preventDefault(); handleCalculate(); }}>
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+            <select name="country" value={selectedCountry} onChange={e => setSelectedCountry(e.target.value)} className="w-full border px-3 py-2 rounded">
+              <option value="">Select country...</option>
+              {countries.map(country => (
+                <option key={country} value={country}>{country}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+            <select name="city" value={activity.city || ''} onChange={handleChange} className="w-full border px-3 py-2 rounded" disabled={!selectedCountry}>
+              <option value="">{!selectedCountry ? 'Select country first...' : 'Select city...'}</option>
+              {cities.map(city => (
+                <option key={`${city}-${selectedCountry}`} value={city}>{city}</option>
+              ))}
+            </select>
+          </div>
+          {/* ...existing activity selection and other fields... */}
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Customer Activity</label>
             <select name="activityId" value={activityId} onChange={e => setActivityId(e.target.value)} className="w-full border px-3 py-2 rounded">
               <option value="">Select activity...</option>
@@ -139,10 +173,6 @@ const CalculatorService: React.FC<CalculatorServiceProps> = ({ setCurrentView })
                 <select name="serviceId" value={activity.serviceId} onChange={handleChange} className="w-full border px-3 py-2 rounded">
                   {services.map(s => <option key={s.id} value={s.id}>{s.name} ({s.location})</option>)}
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                <input name="city" value={activity.city || ''} onChange={handleChange} className="w-full border px-3 py-2 rounded" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Distance Travelled (km)</label>

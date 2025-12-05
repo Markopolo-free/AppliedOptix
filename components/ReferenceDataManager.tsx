@@ -315,13 +315,14 @@ const ReferenceDataManager: React.FC = () => {
                           >
                             Edit
                           </button>
-                          <button
-                            onClick={() => handleDelete(item.id)}
-                            className="px-3 py-1 rounded bg-red-500 text-white hover:bg-red-600 focus:outline-none"
-                            title="Delete"
-                          >
-                            Delete
-                          </button>
+                            <button
+                              onClick={() => handleDelete(item.id)}
+                              className="px-3 py-1 rounded bg-red-500 text-white hover:bg-red-600 focus:outline-none"
+                              title="Delete"
+                              disabled={!item.id || typeof item.id !== 'string' || item.id.trim() === ''}
+                            >
+                              Delete
+                            </button>
                         </td>
                       </tr>
                     ))}

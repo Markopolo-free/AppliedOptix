@@ -287,10 +287,12 @@ const CampaignManager: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">City</label>
-                    <select value={newCampaign.cityId || ''} onChange={e => setNewCampaign({ ...newCampaign, cityId: e.target.value })} className="w-full px-3 py-2 border rounded" required>
-                      <option value="">Select City</option>
-                      {cities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
+                        <select value={newCampaign.cityId || ''} onChange={e => setNewCampaign({ ...newCampaign, cityId: e.target.value })} className="w-full px-3 py-2 border rounded" required>
+                          <option value="">Select City</option>
+                          {cities.filter(c => c.country === newCampaign.countryId).map(c => (
+                            <option key={`${c.name}-${c.country}-${c.id || ''}`} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Services</label>
