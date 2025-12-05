@@ -26,7 +26,7 @@ const LoyaltyManager: React.FC = () => {
   const [editingProgram, setEditingProgram] = useState<LoyaltyProgram | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [cities, setCities] = useState<Array<{ id: string; name: string; population: number }>>([]);
-  const [triggerEvents, setTriggerEvents] = useState<{ id: string; value: string; label: string }[]>([]);
+  const [triggerEvents, setTriggerEvents] = useState<{ id: string; event: string; country: string; city: string }[]>([]);
 
   // Fetch cities from reference data
   useEffect(() => {
@@ -49,18 +49,24 @@ const LoyaltyManager: React.FC = () => {
 
   // Fetch trigger events from reference data
   useEffect(() => {
-    const eventsRef = ref(db, 'loyaltyTriggerEvents');
-    const unsubscribe = onValue(eventsRef, (snapshot) => {
+    console.log('LoyaltyManager mounted');
+    console.log('db:', db);
+    const dbRef = ref(db, 'loyaltyTriggerEvents');
+    const unsubscribe = onValue(dbRef, (snapshot) => {
       const data = snapshot.val();
+      console.log('loyaltyTriggerEvents:', data);
       if (data) {
-        setTriggerEvents(Object.entries(data).map(([id, ev]) => {
-          const e = ev as any;
-          return {
-            id,
-            value: e.value || '',
-            label: e.label || ''
-          };
-        }));
+        setTriggerEvents(
+          Object.entries(data).map(([id, ev]) => {
+            const e = ev as any;
+            return {
+              id,
+              event: e.event || '',
+              country: e.country || '',
+              city: e.city || ''
+            };
+          })
+        );
       } else {
         setTriggerEvents([]);
       }
@@ -315,7 +321,9 @@ const LoyaltyManager: React.FC = () => {
                   <select name="triggerEvent" value={newProgram.triggerEvent} onChange={handleProgramInputChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
                     <option value="">Select an event...</option>
                     {triggerEvents.map(ev => (
-                      <option key={ev.id} value={ev.value}>{ev.label}</option>
+                      <option key={ev.id} value={ev.event}>
+                        {ev.event} {ev.city ? `(${ev.city}${ev.country ? ', ' + ev.country : ''})` : ev.country ? `(${ev.country})` : ''}
+                      </option>
                     ))}
                   </select>
                 </div>
