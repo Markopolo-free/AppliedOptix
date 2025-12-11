@@ -36,6 +36,8 @@ const FXPricingManager: React.FC = () => {
   ]);
 
   const { currentUser, isAdmin } = useAuth();
+
+  // Approve handler for FX pricing
   const database = getDatabase();
 
   // Load FX Pricings
@@ -306,7 +308,7 @@ const FXPricingManager: React.FC = () => {
   };
 
   const handleApprove = async (pricingId: string) => {
-    if (!isAdmin || !currentUser) return;
+    if (!(isAdmin || currentUser?.role === 'Approver') || !currentUser) return;
 
     const pricing = fxPricings.find(p => p.id === pricingId);
     if (!pricing) return;
@@ -337,7 +339,7 @@ const FXPricingManager: React.FC = () => {
   };
 
   const handleReject = async (pricingId: string) => {
-    if (!isAdmin || !currentUser) return;
+    if (!(isAdmin || currentUser?.role === 'Approver') || !currentUser) return;
 
     const pricing = fxPricings.find(p => p.id === pricingId);
     if (!pricing) return;
@@ -798,7 +800,7 @@ const FXPricingManager: React.FC = () => {
                       >
                         Delete
                       </button>
-                      {isAdmin && pricing.status === ApprovalStatus.Pending && (
+                      {(isAdmin || currentUser?.role === 'Approver') && pricing.status === ApprovalStatus.Pending && (
                         <>
                           <button
                             onClick={() => handleApprove(pricing.id)}

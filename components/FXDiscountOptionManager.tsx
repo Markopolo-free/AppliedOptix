@@ -1,3 +1,4 @@
+            {/* Removed invalid inline console.log from JSX render */}
 import React, { useState, useEffect, useCallback } from 'react';
 import { ref, onValue, push, update, remove, set, serverTimestamp } from 'firebase/database';
 import { db } from '../services/firebase';
@@ -83,10 +84,14 @@ const FXDiscountOptionManager: React.FC = () => {
       onValue(optionsRef, (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.val();
-          const list: FXDiscountOption[] = Object.keys(data).map((key) => ({
-            id: key,
-            ...data[key],
-          }));
+          const list: FXDiscountOption[] = Object.keys(data).map((key) => {
+            const record = { id: key, ...data[key] };
+            // Ensure currency is always present, even if undefined
+            if (!('currency' in record)) {
+              record.currency = '';
+            }
+            return record;
+          });
 
           // Sort by end date (most recent first)
           list.sort((a, b) => {
@@ -153,11 +158,19 @@ const FXDiscountOptionManager: React.FC = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    console.log('handleInputChange:', name, value);
     if (name === 'discountAmount') {
       setNewOption((prev) => ({ ...prev, [name]: parseFloat(value) || 0 }));
     } else {
       setNewOption((prev) => ({ ...prev, [name]: value }));
     }
+  };
+
+  // Specific handler for currency dropdown to guarantee update
+  const handleCurrencyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    console.log('handleCurrencyChange:', value);
+    setNewOption((prev) => ({ ...prev, currency: value }));
   };
 
   const calculateChanges = (oldData: FXDiscountOption, newData: any) => {
@@ -183,29 +196,34 @@ const FXDiscountOptionManager: React.FC = () => {
   const handleSaveOption = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!newOption.currency) {
+      alert('Please select a currency for this FX Discount Group.');
+      return;
+    }
+
+    console.log('DEBUG newOption at save:', newOption);
     const optionData = {
+      ...newOption,
+      currency: newOption.currency || '', // Always include currency explicitly
       optionNumber: editingOption?.optionNumber || generateOptionNumber(),
-      name: newOption.name,
-      description: newOption.description,
-      serviceItem: newOption.serviceItem,
-      fxSegment: newOption.fxSegment,
-      discountType: newOption.discountType,
-      discountAmountType: newOption.discountAmountType,
-      discountAmount: newOption.discountAmount,
-      maxCapType: newOption.maxCapType,
-      currency: newOption.currency,
-      capPeriodStart: newOption.capPeriodStart,
-      capPeriodEnd: newOption.capPeriodEnd,
-      startDate: newOption.startDate,
-      endDate: newOption.endDate,
       lastModifiedBy: currentUser?.email || 'system',
       lastModifiedAt: serverTimestamp(),
     };
+    // Forced log: show all keys and values in optionData
+    console.log('FORCE LOG: optionData keys:', Object.keys(optionData));
+    for (const k of Object.keys(optionData)) {
+      console.log('FORCE LOG: optionData[' + k + ']:', optionData[k]);
+    }
 
     try {
       if (editingOption) {
         const optionRef = ref(db, `fxDiscountOptions/${editingOption.id}`);
+        console.log('UPDATE: Writing to path:', `fxDiscountOptions/${editingOption.id}`);
+        console.log('UPDATE: Payload:', optionData);
         await update(optionRef, optionData);
+        // Immediately read back the record after update
+        const snapshot = await (await import('firebase/database')).get(optionRef);
+        console.log('FORCE LOG: Record after update:', snapshot.exists() ? snapshot.val() : 'No record');
 
         // Log audit for update
         if (currentUser) {
@@ -224,7 +242,12 @@ const FXDiscountOptionManager: React.FC = () => {
       } else {
         const optionsListRef = ref(db, 'fxDiscountOptions');
         const newOptionRef = push(optionsListRef);
+        console.log('CREATE: Writing to path:', `fxDiscountOptions/${newOptionRef.key}`);
+        console.log('CREATE: Payload:', optionData);
         await set(newOptionRef, optionData);
+        // Immediately read back the record after create
+        const snapshot = await (await import('firebase/database')).get(newOptionRef);
+        console.log('FORCE LOG: Record after create:', snapshot.exists() ? snapshot.val() : 'No record');
 
         // Log audit for create
         if (currentUser) {
@@ -387,6 +410,7 @@ const FXDiscountOptionManager: React.FC = () => {
             <h2 className="text-2xl font-bold mb-6 text-gray-800">
               {editingOption ? 'Edit FX Discount Group' : 'Add New FX Discount Group'}
             </h2>
+            {/* Debug log removed: console.log('RENDER: newOption.currency =', newOption.currency) */}
             <form onSubmit={handleSaveOption}>
               <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-2">
                 <div className="sm:col-span-2">
@@ -525,7 +549,7 @@ const FXDiscountOptionManager: React.FC = () => {
                     name="currency"
                     id="currency"
                     value={newOption.currency}
-                    onChange={handleInputChange}
+                    onChange={handleCurrencyChange}
                     className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                     required
                   >

@@ -21,7 +21,8 @@ const generateCampaignNumber = () => {
   return `FXCAMP-${year}${month}${day}-${random}`;
 };
 
-const discountTypes = ['Cashback', 'Discount', 'Bonus Points', 'Fee Waiver'] as const;
+// Discount Amount Types from reference data
+// Remove duplicate declaration below
 
 const initialNewCampaignState = {
   name: '',
@@ -30,7 +31,7 @@ const initialNewCampaignState = {
   cityId: '',
   currency: '',
   serviceItem: '',
-  discountType: 'Cashback' as const,
+  discountType: 'Cashback',
   discountAmount: '',
   qualifyingEvent: '',
   startDate: getTodayString(),
@@ -40,8 +41,28 @@ const initialNewCampaignState = {
   rewardAvailableFrom: '',
 };
 
-const FXCampaignManager: React.FC = () => {
+function FXCampaignManager() {
+    // Fetch Discount Amount Types from reference data
+    useEffect(() => {
+      const fetchDiscountAmountTypes = async () => {
+        try {
+          const refDiscountTypes = ref(db, 'referenceDiscountAmountTypes');
+          const snapshot = await get(refDiscountTypes);
+          if (snapshot.exists()) {
+            const data = snapshot.val();
+            const types = Object.values(data).map((item: any) => item.value).filter(Boolean);
+            setDiscountAmountTypes(types);
+          } else {
+            setDiscountAmountTypes([]);
+          }
+        } catch (error) {
+          console.error('Error fetching Discount Amount Types:', error);
+        }
+      };
+      fetchDiscountAmountTypes();
+    }, []);
   const { currentUser } = useAuth();
+  const [discountAmountTypes, setDiscountAmountTypes] = useState<string[]>([]);
   const [campaigns, setCampaigns] = useState<FXCampaign[]>([]);
   const [currencies, setCurrencies] = useState<Array<{ id: string; code: string; name: string }>>([]);
   const [countries, setCountries] = useState<string[]>([]);
@@ -523,8 +544,8 @@ const FXCampaignManager: React.FC = () => {
                     className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                   >
                     <option value="">Select country...</option>
-                    {countries.map((country) => (
-                      <option key={country} value={country}>
+                    {countries.map((country, idx) => (
+                      <option key={country + '-' + idx} value={country}>
                         {country}
                       </option>
                     ))}
@@ -543,8 +564,8 @@ const FXCampaignManager: React.FC = () => {
                     className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   >
                     <option value="">Select city...</option>
-                    {filteredCities.map((city) => (
-                      <option key={city} value={city}>
+                    {filteredCities.map((city, idx) => (
+                      <option key={city + '-' + idx} value={city}>
                         {city}
                       </option>
                     ))}
@@ -587,7 +608,7 @@ const FXCampaignManager: React.FC = () => {
                 </div>
                 <div>
                   <label htmlFor="discountType" className="block text-sm font-medium text-gray-700">
-                    Discount Type
+                    Discount Amount Type
                   </label>
                   <select
                     id="discountType"
@@ -596,7 +617,8 @@ const FXCampaignManager: React.FC = () => {
                     onChange={handleInputChange}
                     className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                   >
-                    {discountTypes.map((dt) => (
+                    <option value="">Select Discount Amount Type...</option>
+                    {discountAmountTypes.map((dt) => (
                       <option key={dt} value={dt}>
                         {dt}
                       </option>
