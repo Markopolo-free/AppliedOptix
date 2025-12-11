@@ -18,9 +18,12 @@ const LoyaltyManager = lazy(() => import('./components/LoyaltyManager'));
 const ZoneManager = lazy(() => import('./components/ZoneManager'));
 const ServiceManager = lazy(() => import('./components/ServiceManager'));
 const ThemeConfigurator = lazy(() => import('./components/ThemeConfigurator'));
-const ReferenceDataManager = lazy(() => import('./components/ReferenceDataManager.tsx'));
+const ReferenceDataManager = lazy(() => import('./components/ReferenceDataManager'));
 const AuditManager = lazy(() => import('./components/AuditManager'));
 const FXPricingManager = lazy(() => import('./components/FXPricingManager'));
+// @ts-ignore
+const FXMarginBuilder = lazy(() => import('./components/FXMarginBuilder.jsx'));
+const DiscountAmountTypeManager = lazy(() => import('./components/DiscountAmountTypeManager'));
 const UserDiscountGroupManager = lazy(() => import('./components/UserDiscountGroupManager'));
 const FXCampaignManager = lazy(() => import('./components/FXCampaignManager'));
 const FXDiscountOptionManager = lazy(() => import('./components/FXDiscountOptionManager'));
@@ -30,6 +33,7 @@ const CompanyDetailsManager = lazy(() => import('./components/CompanyDetailsMana
 const CustomerManager = lazy(() => import('./components/CustomerManager'));
 const CustomerActivityManager = lazy(() => import('./components/CustomerActivityManager'));
 const CalculatorService = lazy(() => import('./components/CalculatorService.tsx'));
+const CampaignsReport = lazy(() => import('./components/CampaignsReport'));
 
 // View type now imported from types.ts
 
@@ -70,6 +74,10 @@ const App: React.FC = () => {
         return <AuditManager />;
       case 'fxpricing':
         return <FXPricingManager />;
+      case 'fxmarginbuilder':
+        return <FXMarginBuilder />;
+      case 'discountAmountTypes':
+        return <DiscountAmountTypeManager />;
       case 'discountgroups':
         return <UserDiscountGroupManager />;
       case 'fxcampaigns':
@@ -90,6 +98,8 @@ const App: React.FC = () => {
         return <CustomerActivityManager />;
       case 'calculatorService':
         return <CalculatorService setCurrentView={setCurrentView} />;
+      case 'campaignsReport':
+        return <CampaignsReport />;
       default:
         return <Dashboard />;
     }
