@@ -6,8 +6,11 @@ import Sidebar from './components/Sidebar';
 import { View } from './types';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
+import React, { lazy, Suspense, useState } from 'react';
+
 
 // Lazy-load manager components for route-based code splitting
+const FXMarginBuilder = lazy(() => import('./components/FXMarginBuilder.jsx'));
 const UserManager = lazy(() => import('./components/UserManager'));
 const CampaignManager = lazy(() => import('./components/CampaignManager'));
 const PricingManager = lazy(() => import('./components/PricingManager'));
@@ -41,7 +44,11 @@ const App: React.FC = () => {
 
   const renderView = () => {
     switch (currentView) {
-      case 'dashboard':
+    case 'fxmarginbuilder':
+      return (
+        <Suspense fallback={<div>Loading FX Margin Builder...</div>}>
+          <FXMarginBuilder />
+        case 'dashboard':
         return <Dashboard />;
       case 'users':
         return <UserManager />;
