@@ -1,0 +1,29 @@
+[
+  {
+    "currencyPair": "USD_EUR",
+    "product": "FX_SPOT",
+    "applicableDiscountGroups": [
+      {
+        "name": "USD FX Discount Group",
+        "currency": "USD",
+        "discount": "5%"
+      }
+    ]
+  },
+  {
+    "currencyPair": "GBP_USD",
+    "product": "FX_FORWARD",
+    "applicableDiscountGroups": [
+      {
+        "name": "GBP FX Discount Group",
+        "currency": "GBP",
+        "discount": "3%"
+      },
+      {
+        "name": "USD FX Discount Group",
+        "currency": "USD",
+        "discount": "5%"
+      }
+    ]
+  }
+]

@@ -6,11 +6,10 @@ import Sidebar from './components/Sidebar';
 import { View } from './types';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
-import React, { lazy, Suspense, useState } from 'react';
 
 
 // Lazy-load manager components for route-based code splitting
-const FXMarginBuilder = lazy(() => import('./components/FXMarginBuilder.jsx'));
+const FXMarginBuilder = lazy(() => import('./components/FXMarginBuilder'));
 const UserManager = lazy(() => import('./components/UserManager'));
 const CampaignManager = lazy(() => import('./components/CampaignManager'));
 const PricingManager = lazy(() => import('./components/PricingManager'));
@@ -21,8 +20,6 @@ const ThemeConfigurator = lazy(() => import('./components/ThemeConfigurator'));
 const ReferenceDataManager = lazy(() => import('./components/ReferenceDataManager'));
 const AuditManager = lazy(() => import('./components/AuditManager'));
 const FXPricingManager = lazy(() => import('./components/FXPricingManager'));
-// @ts-ignore
-const FXMarginBuilder = lazy(() => import('./components/FXMarginBuilder.jsx'));
 const DiscountAmountTypeManager = lazy(() => import('./components/DiscountAmountTypeManager'));
 const UserDiscountGroupManager = lazy(() => import('./components/UserDiscountGroupManager'));
 const FXCampaignManager = lazy(() => import('./components/FXCampaignManager'));
@@ -32,7 +29,7 @@ const BundledPricingManager = lazy(() => import('./components/BundledPricingMana
 const CompanyDetailsManager = lazy(() => import('./components/CompanyDetailsManager'));
 const CustomerManager = lazy(() => import('./components/CustomerManager'));
 const CustomerActivityManager = lazy(() => import('./components/CustomerActivityManager'));
-const CalculatorService = lazy(() => import('./components/CalculatorService.tsx'));
+const CalculatorService = lazy(() => import('./components/CalculatorService'));
 const CampaignsReport = lazy(() => import('./components/CampaignsReport'));
 
 // View type now imported from types.ts
@@ -48,11 +45,7 @@ const App: React.FC = () => {
 
   const renderView = () => {
     switch (currentView) {
-    case 'fxmarginbuilder':
-      return (
-        <Suspense fallback={<div>Loading FX Margin Builder...</div>}>
-          <FXMarginBuilder />
-        case 'dashboard':
+      case 'dashboard':
         return <Dashboard />;
       case 'users':
         return <UserManager />;

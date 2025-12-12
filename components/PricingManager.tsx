@@ -141,8 +141,10 @@ const PricingManager: React.FC = () => {
                 console.log('No service types found in referenceServiceTypes');
             }
             
-            console.log(`Loaded ${options.length} service type options:`, options);
-            setServiceTypeOptions(options);
+            // Deduplicate options by id
+            const uniqueOptions = Array.from(new Map(options.map(opt => [opt.id, opt])).values());
+            console.log(`Loaded ${uniqueOptions.length} unique service type options:`, uniqueOptions);
+            setServiceTypeOptions(uniqueOptions);
 
         } catch (error) {
             console.error("Error fetching data:", error);

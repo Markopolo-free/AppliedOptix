@@ -1,10 +1,25 @@
+const categoryToPath: Record<CategoryType, string> = {
+  countries: 'referenceCountries',
+  currencies: 'referenceCurrencies',
+  fxSegments: 'referenceFXSegments',
+  serviceTypes: 'referenceServiceTypes',
+  zoneTypes: 'referenceZoneTypes',
+  companyTypes: 'referenceCompanyTypes',
+  zones: 'referenceZones',
+  cities: 'referenceCities',
+  weatherConditions: 'referenceWeatherConditions',
+  loyaltyTriggerEvents: 'loyaltyTriggerEvents',
+  discountAmountTypes: 'referenceDiscountAmountTypes',
+  badges: 'referenceBadges',
+};
+
 import React, { useState, useEffect } from 'react';
-import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { getDatabase, ref, onValue, push, remove, update } from 'firebase/database';
+import { ref, onValue, push, update, remove } from 'firebase/database';
+import { set } from 'firebase/database';
+import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { logAudit, calculateChanges } from '../services/auditService';
-import WeatherConditionsManager from './WeatherConditionsManager';
-
+// --- Types ---
 interface City {
   id: string;
   name: string;
@@ -13,227 +28,189 @@ interface City {
   dateAdded: string;
   addedBy: string;
 }
-
-
-// --- Multi-category ReferenceDataManager ---
-type CategoryType = 'countries' | 'currencies' | 'fxSegments' | 'serviceTypes' | 'zoneTypes' | 'companyTypes' | 'zones' | 'cities' | 'weatherConditions' | 'loyaltyTriggerEvents' | 'badges';
-
-
+type CategoryType = 'countries' | 'currencies' | 'fxSegments' | 'serviceTypes' | 'zoneTypes' | 'companyTypes' | 'zones' | 'cities' | 'weatherConditions' | 'loyaltyTriggerEvents' | 'discountAmountTypes' | 'badges';
 interface ReferenceItem {
   id: string;
   name?: string;
+  code?: string;
   description?: string;
-  iconUrl?: string;
-  country?: string; // Used for cities and loyaltyTriggerEvents
+  country?: string;
+  city?: string;
   population?: number;
   dateAdded?: string;
   addedBy?: string;
-  // For loyaltyTriggerEvents
-  // Removed value/label for loyaltyTriggerEvents
-  event?: string;
-  city?: string;
 }
 
-const ReferenceDataManager: React.FC = () => {
+const categoryFields: Record<CategoryType, Array<{ key: keyof ReferenceItem, label: string, required?: boolean, type?: string }>> = {
+  countries: [
+    { key: 'name', label: 'Country Name', required: true },
+    { key: 'population', label: 'Population', type: 'number' },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+  currencies: [
+    { key: 'code', label: 'Code', required: true },
+    { key: 'name', label: 'Currency Name', required: true },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+  fxSegments: [
+    { key: 'name', label: 'FX Segment', required: true },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+  serviceTypes: [
+    { key: 'name', label: 'Service Type', required: true },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+  zoneTypes: [
+    { key: 'name', label: 'Zone Type', required: true },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+  companyTypes: [
+    { key: 'name', label: 'Company Type', required: true },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+  zones: [
+    { key: 'name', label: 'Zone Name', required: true },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+  cities: [
+    { key: 'name', label: 'City Name', required: true },
+    { key: 'country', label: 'Country' },
+    { key: 'population', label: 'Population', type: 'number' },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+  weatherConditions: [
+    { key: 'name', label: 'Weather Condition', required: true },
+    { key: 'country', label: 'Country' },
+    { key: 'city', label: 'City' },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+  loyaltyTriggerEvents: [
+    { key: 'name', label: 'Event Name', required: true },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+  discountAmountTypes: [
+    { key: 'name', label: 'Discount Amount Type', required: true },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+  badges: [
+    { key: 'name', label: 'Badge Name', required: true },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+};
 
-  // Handle image upload for icon (Base64)
-  const handleIconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 500 * 1024) {
-      alert('Image size should be less than 500KB. Please choose a smaller image.');
-      return;
-    }
-    if (!file.type.startsWith('image/')) {
-      alert('Please select a valid image file.');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64String = reader.result as string;
-      setFormData(prev => ({ ...prev, iconUrl: base64String }));
-    };
-    reader.readAsDataURL(file);
-  };
-  const { currentUser } = useAuth();
+
+const ReferenceDataManager: React.FC = () => {
   const [category, setCategory] = useState<CategoryType>('countries');
-  const [items, setItems] = useState<ReferenceItem[]>([]); // Removed badges reference
-  const [formData, setFormData] = useState<ReferenceItem>({ id: '', name: '', description: '', iconUrl: '' });
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [referenceCountries, setReferenceCountries] = useState<string[]>([]);
-  const [referenceCities, setReferenceCities] = useState<{ name: string; country: string }[]>([]);
+  const [items, setItems] = useState<ReferenceItem[]>([]);
+  const [showForm, setShowForm] = useState(false);
+  const [editingItem, setEditingItem] = useState<ReferenceItem | null>(null);
+  const [formData, setFormData] = useState<Partial<ReferenceItem>>({});
+  const [countryOptions, setCountryOptions] = useState<string[]>([]);
+  const [cityOptions, setCityOptions] = useState<string[]>([]);
+  const { currentUser } = useAuth();
 
   useEffect(() => {
-    // Map category to correct Firebase path
-    const db = getDatabase();
-    let refPath = '';
-    switch (category) {
-      case 'countries': refPath = 'referenceCountries'; break;
-      case 'currencies': refPath = 'referenceCurrencies'; break;
-      case 'fxSegments': refPath = 'referenceFXSegments'; break;
-      case 'serviceTypes': refPath = 'referenceServiceTypes'; break;
-      case 'zoneTypes': refPath = 'referenceZoneTypes'; break;
-      case 'companyTypes': refPath = 'referenceCompanyTypes'; break;
-      case 'zones': refPath = 'referenceZones'; break;
-      case 'cities': refPath = 'referenceCities'; break;
-      case 'weatherConditions': refPath = 'referenceWeatherConditions'; break;
-      case 'loyaltyTriggerEvents': refPath = 'loyaltyTriggerEvents'; break;
-      default: refPath = '';
-    }
+    const refPath = categoryToPath[category];
     if (!refPath) {
       setItems([]);
       return;
     }
     const dbRef = ref(db, refPath);
-    const unsubscribe = onValue(dbRef, (snapshot) => {
+    const countriesRef = ref(db, categoryToPath['countries']);
+    const citiesRef = ref(db, categoryToPath['cities']);
+    let countryNames: string[] = [];
+    let cityNames: string[] = [];
+    const unsubCountries = onValue(countriesRef, (snapshot) => {
       const data = snapshot.val() || {};
-      const loadedItems = Object.entries(data).map(([id, value]: [string, any]) => ({ id, ...value }));
-      setItems(loadedItems);
+      countryNames = Object.values(data).map((item: any) => (item.name || '').trim());
+      setCountryOptions(countryNames);
     });
-    return () => unsubscribe();
-  }, [category]);
-
-  useEffect(() => {
-    // Load reference countries and cities for dropdowns in cities and loyaltyTriggerEvents
-    if (category === 'cities' || category === 'loyaltyTriggerEvents') {
-      const db = getDatabase();
-      const countriesRef = ref(db, 'referenceCountries');
-      const unsubCountries = onValue(countriesRef, (snapshot) => {
-        const data = snapshot.val() || {};
-        setReferenceCountries(Object.values(data).map((item: any) => item.name).filter(Boolean));
+    const unsubCities = onValue(citiesRef, (snapshot) => {
+      const data = snapshot.val() || {};
+      cityNames = Object.values(data).map((item: any) => (item.name || '').trim());
+      setCityOptions(cityNames);
+    });
+    const unsubscribe = onValue(dbRef, (snapshot) => {
+        // DEBUG: Log category and Firebase path
+        // eslint-disable-next-line no-console
+        console.log('Loading category:', category, 'from path:', dbRef.toString());
+      const data = snapshot.val() || {};
+      let loadedItems = Object.entries(data).map(([key, value]: [string, any]) => {
+        // If id is missing or empty, use the Firebase key
+        const itemId = value.id && typeof value.id === 'string' && value.id.trim() !== '' ? value.id : key;
+        return { id: itemId, ...value };
       });
-      const citiesRef = ref(db, 'referenceCities');
-      const unsubCities = onValue(citiesRef, (snapshot) => {
-        const data = snapshot.val() || {};
-        setReferenceCities(Object.values(data).map((item: any) => ({ name: item.name, country: item.country })).filter(c => c.name && c.country));
-      });
-      return () => {
-        unsubCountries();
-        unsubCities();
-      };
-    }
-  }, [category]);
-
-  // Map category to correct Firebase path
-  const getRefPath = (cat: CategoryType, id?: string) => {
-    let base = '';
-    switch (cat) {
-      case 'countries': base = 'referenceCountries'; break;
-      case 'currencies': base = 'referenceCurrencies'; break;
-      case 'fxSegments': base = 'referenceFXSegments'; break;
-      case 'serviceTypes': base = 'referenceServiceTypes'; break;
-      case 'zoneTypes': base = 'referenceZoneTypes'; break;
-      case 'companyTypes': base = 'referenceCompanyTypes'; break;
-      case 'zones': base = 'referenceZones'; break;
-      case 'cities': base = 'referenceCities'; break;
-      case 'weatherConditions': base = 'referenceWeatherConditions'; break;
-      case 'loyaltyTriggerEvents': base = 'loyaltyTriggerEvents'; break;
-      default: base = ''; break;
-    }
-    return id ? `${base}/${id}` : base;
-  };
-
-  const handleAdd = () => {
-    // Validation: Prevent blank records for all types
-    if (category === 'loyaltyTriggerEvents') {
-      if (!formData.event?.trim() || !formData.country?.trim() || !formData.city?.trim()) {
-        alert('Event, Country, and City are required.');
-        return;
+      // Sanitize all fields for weatherConditions
+      if (category === 'weatherConditions') {
+        const sanitize = (val) => {
+          if (Array.isArray(val)) return val.join('');
+          return typeof val === 'string' ? val : '';
+        };
+        loadedItems = loadedItems
+          .map(item => ({
+            ...item,
+            id: sanitize(item.id),
+            name: sanitize(item.name),
+            description: sanitize(item.description),
+            country: sanitize(item.country),
+            city: sanitize(item.city),
+          }))
+          // Only keep items that have a valid name and description
+          .filter(item => typeof item === 'object' && item !== null && item.name && item.description);
       }
-    } else {
-      if (category === 'cities') {
-        if (!formData.name?.trim() || !formData.description?.trim() || !formData.country?.trim()) {
-          alert('Name, Description, and Country are required for cities.');
-          return;
+      // Debug log: show raw loaded items
+      // eslint-disable-next-line no-console
+      loadedItems.forEach((item, idx) => {
+        console.log(`Item ${idx}:`, item);
+      });
+      // Filter duplicates by name (case-insensitive)
+      const seen = new Set<string>();
+      let filtered = loadedItems.filter(item => {
+        if (category === 'weatherConditions') {
+          // Only include items that are objects and have a valid name
+          return typeof item === 'object' && item !== null && typeof item.name === 'string' && item.name.trim() !== '';
         }
-      } else {
-        if (!formData.name?.trim() || !formData.description?.trim()) {
-          alert('Name and Description are required.');
-          return;
-        }
+        const name = (item.name || '').trim().toLowerCase();
+        if (!name || seen.has(name)) return false;
+        seen.add(name);
+        return true;
+      });
+      // Remove any item whose name matches a country name, except for loyaltyTriggerEvents, countries, cities, and weatherConditions
+      if (
+        countryNames.length > 0 &&
+        category !== 'loyaltyTriggerEvents' &&
+        category !== 'countries' &&
+        category !== 'cities' &&
+        category !== 'weatherConditions'
+      ) {
+        filtered = filtered.filter(item => {
+          const name = (item.name || '').trim().toLowerCase();
+          return !countryNames.map(n => n.toLowerCase()).includes(name);
+        });
       }
-    }
-    const db = getDatabase();
-    const refPath = getRefPath(category);
-    if (!refPath) return;
-    const dbRef = ref(db, refPath);
-    if (category === 'loyaltyTriggerEvents') {
-      // Push only event, country, city
-      push(dbRef, { event: formData.event, country: formData.country, city: formData.city });
-      setFormData({ id: '', event: '', country: '', city: '' });
-    } else {
-      push(dbRef, formData);
-      setFormData({ id: '', name: '', description: '', iconUrl: '' });
-    }
-  };
-
-  const handleEdit = (item: ReferenceItem) => {
-    setEditingId(item.id);
-    if (category === 'loyaltyTriggerEvents') {
-      setFormData({
-        id: item.id,
-        event: item.event || '',
-        country: item.country || '',
-        city: item.city || ''
-      });
-    } else if (category === 'countries') {
-      setFormData({
-        id: item.id,
-        name: item.name || '',
-        description: item.description || '',
-        iconUrl: item.iconUrl || ''
-      });
-    } else {
-      setFormData(item);
-    }
-  };
-
-  const handleUpdate = () => {
-    if (!editingId) return;
-    const db = getDatabase();
-    const refPath = getRefPath(category, editingId);
-    if (!refPath) return;
-    const dbRef = ref(db, refPath);
-    if (category === 'loyaltyTriggerEvents') {
-      update(dbRef, {
-        event: formData.event || '',
-        country: formData.country || '',
-        city: formData.city || ''
-      });
-      setFormData({ id: '', event: '', country: '', city: '' });
-    } else {
-      update(dbRef, formData);
-      setFormData({ id: '', name: '', description: '', iconUrl: '' });
-    }
-    setEditingId(null);
-  };
-
-  const handleDelete = async (id: string) => {
-    console.log('Delete requested for ID:', id, 'Category:', category);
-    if (!id || typeof id !== 'string' || id.trim() === '') {
-      alert('Delete failed: Invalid item ID.');
-      console.error('Delete failed: Invalid item ID.', id);
-      return;
-    }
-    const db = getDatabase();
-    const refPath = getRefPath(category, id);
-    if (!refPath || refPath.endsWith('/')) {
-      alert('Delete failed: Invalid reference path.');
-      console.error('Delete failed: Invalid reference path.', refPath);
-      return;
-    }
-    const dbRef = ref(db, refPath);
-    try {
-      await remove(dbRef);
-      setEditingId(null);
-      setFormData(category === 'countries' ? { id: '', name: '', description: '', iconUrl: '' } : category === 'loyaltyTriggerEvents' ? { id: '', event: '', country: '', city: '' } : { id: '', name: '', description: '', iconUrl: '' });
-      // Data will refresh automatically via useEffect
-      console.log('Delete successful for ID:', id);
-    } catch (error) {
-      alert('Delete failed: ' + (error?.message || error));
-      console.error('Delete failed:', error);
-    }
-  };
+      // Debug log: show filtered items
+      // eslint-disable-next-line no-console
+      console.log('Filtered items for UI:', filtered);
+      setItems(filtered);
+    });
+    return () => {
+      unsubscribe();
+      unsubCountries();
+      unsubCities();
+    };
+  }, [category]);
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -250,276 +227,235 @@ const ReferenceDataManager: React.FC = () => {
           <option value="cities">Cities</option>
           <option value="weatherConditions">Weather Conditions</option>
           <option value="loyaltyTriggerEvents">Loyalty Trigger Events</option>
+          <option value="discountAmountTypes">Discount Amount Types</option>
         </select>
-        <table className="min-w-full border mb-4">
-          <thead>
-            <tr>
-              {category === 'loyaltyTriggerEvents' ? (
-                <>
-                  <th>Event</th>
-                  <th>Country</th>
-                  <th>City</th>
-                  <th>Actions</th>
-                </>
-              ) : (
-                <>
-                  <th>Country</th>
-                  <th>City</th>
-                  <th>Icon URL</th>
-                  <th>Actions</th>
-                </>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {category === 'cities' ? (
-              (() => {
-                // Group cities by country
-                const grouped = items.reduce((acc, item) => {
-                  const countryKey = item.country || 'Unknown';
-                  if (!acc[countryKey]) acc[countryKey] = [];
-                  acc[countryKey].push(item);
-                  return acc;
-                }, {} as Record<string, ReferenceItem[]>);
-                return Object.entries(grouped).map(([country, cities], countryIdx) => (
-                  <React.Fragment key={country}>
-                    {countryIdx > 0 && (
-                      <tr>
-                        <td colSpan={4}>
-                          <hr style={{ border: 'none', borderTop: '3px solid #2563eb', margin: '12px 0' }} />
-                        </td>
-                      </tr>
-                    )}
-                    {cities.map((item, idx) => (
-                      <tr key={item.id ? String(item.id) : `${item.name || 'unknown'}-${idx}`}>
-                        <td>{item.country}</td>
-                        <td>{item.name}</td>
-                        <td>
-                          {item.iconUrl ? (
-                            <span style={{ display: 'inline-block', background: '#fff', borderRadius: '50%', padding: 4 }}>
-                              <img
-                                src={item.iconUrl}
-                                alt={item.name || 'icon'}
-                                style={{ width: 32, height: 32, objectFit: 'contain', borderRadius: '50%', background: '#fff' }}
-                              />
-                            </span>
-                          ) : (
-                            <span className="text-gray-400">No icon</span>
-                          )}
-                        </td>
-                        <td className="space-x-2">
-                          <button
-                            onClick={() => handleEdit(item)}
-                            className="px-3 py-1 rounded bg-blue-500 text-white hover:bg-blue-600 focus:outline-none"
-                            title="Edit"
-                          >
-                            Edit
-                          </button>
-                            <button
-                              onClick={() => handleDelete(item.id)}
-                              className="px-3 py-1 rounded bg-red-500 text-white hover:bg-red-600 focus:outline-none"
-                              title="Delete"
-                              disabled={!item.id || typeof item.id !== 'string' || item.id.trim() === ''}
-                            >
-                              Delete
-                            </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </React.Fragment>
-                ));
-              })()
-            ) : category === 'loyaltyTriggerEvents' ? (
-              <>
-                {items.map((item, idx) => (
-                  <tr key={item.id ? String(item.id) : `${item.event || 'unknown'}-${idx}`}> 
-                    <td>{item.event}</td>
-                    <td>{item.country}</td>
-                    <td>{item.city}</td>
-                    <td className="space-x-2">
-                      <button
-                        onClick={() => handleEdit(item)}
-                        className="px-3 py-1 rounded bg-blue-500 text-white hover:bg-blue-600 focus:outline-none"
-                        title="Edit"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(item.id)}
-                        className="px-3 py-1 rounded bg-red-500 text-white hover:bg-red-600 focus:outline-none"
-                        title="Delete"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </>
-            ) : (
-              <>
-                {items.map((item, idx) => (
-                  <tr key={item.id ? String(item.id) : `${item.name || 'unknown'}-${idx}`}> 
-                    <td>{item.name}</td>
-                    <td>{item.description}</td>
-                    <td>
-                      {item.iconUrl ? (
-                        <span style={{ display: 'inline-block', background: '#fff', borderRadius: '50%', padding: 4 }}>
-                          <img
-                            src={item.iconUrl}
-                            alt={item.name || 'icon'}
-                            style={{ width: 32, height: 32, objectFit: 'contain', borderRadius: '50%', background: '#fff' }}
-                          />
-                        </span>
-                      ) : (
-                        <span className="text-gray-400">No icon</span>
-                      )}
-                    </td>
-                    <td className="space-x-2">
-                      <button
-                        onClick={() => handleEdit(item)}
-                        className="px-3 py-1 rounded bg-blue-500 text-white hover:bg-blue-600 focus:outline-none"
-                        title="Edit"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(item.id)}
-                        className="px-3 py-1 rounded bg-red-500 text-white hover:bg-red-600 focus:outline-none"
-                        title="Delete"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </>
-            )}
-          </tbody>
-        </table>
-        <form onSubmit={e => { e.preventDefault(); editingId ? handleUpdate() : handleAdd(); }}>
-          {category === 'loyaltyTriggerEvents' ? (
-            <>
-              <div>
-                <label className="block text-sm font-medium mb-1">Event</label>
-                <input
-                  type="text"
-                  value={formData.event || ''}
-                  onChange={e => setFormData({ ...formData, event: e.target.value })}
-                  className="w-full px-3 py-2 border rounded"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Country</label>
-                <select
-                  value={formData.country || ''}
-                  onChange={e => {
-                    const selectedCountry = e.target.value;
-                    setFormData(prev => ({ ...prev, country: selectedCountry, city: '' }));
+        <div className="mt-4">
+          <div className="flex justify-between items-center mb-2">
+            <div className="font-semibold">{categoryFields[category].map(f => f.label).join(' | ')}</div>
+            <div className="flex gap-2">
+              <button className="px-3 py-1 bg-blue-600 text-white rounded" onClick={() => { setShowForm(true); setEditingItem(null); setFormData({}); }}>Add</button>
+              {category === 'countries' && (
+                <button
+                  className="px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700"
+                  onClick={async () => {
+                    const orphanedNames = ['Greece', 'Hong Kong', 'Estonia'];
+                    const orphaned = items.filter(item => orphanedNames.includes((item.name || '').trim()));
+                    if (orphaned.length === 0) {
+                      window.alert('No orphaned countries found.');
+                      return;
+                    }
+                    if (!window.confirm(`Remove the following orphaned countries?\n${orphaned.map(i => i.name).join(', ')}`)) return;
+                    const refPath = categoryToPath['countries'];
+                    let errors = [];
+                    for (const item of orphaned) {
+                      try {
+                        await remove(ref(db, `${refPath}/${item.id}`));
+                      } catch (err) {
+                        errors.push(item.name);
+                      }
+                    }
+                    if (errors.length > 0) {
+                      window.alert(`Failed to remove: ${errors.join(', ')}`);
+                    } else {
+                      window.alert('Orphaned countries removed.');
+                    }
                   }}
-                  className="w-full px-3 py-2 border rounded"
-                  required
                 >
-                  <option value="">Select Country</option>
-                  {[...new Set(referenceCountries)].map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">City</label>
-                {(() => {
-                  // Debug: print all cities and their country values
-                  console.log('All referenceCities:', referenceCities);
-                  const selectedCountry = (formData.country || '').trim().toLowerCase();
-                  console.log('Selected country:', selectedCountry);
-                  const filteredCities = referenceCities.filter(city =>
-                    city.country && city.country.trim().toLowerCase() === selectedCountry
-                  );
-                  console.log('Filtered cities:', filteredCities);
-                  return (
-                    <select
-                      value={formData.city || ''}
-                      onChange={e => setFormData({ ...formData, city: e.target.value })}
-                      className="w-full px-3 py-2 border rounded"
-                      required
-                    >
-                      <option value="">Select City</option>
-                      {filteredCities.map(city => (
-                        <option key={city.name} value={city.name}>{city.name}</option>
-                      ))}
-                    </select>
-                  );
-                })()}
-              </div>
-            </>
-          ) : (
-            <>
-              <div>
-                <label className="block text-sm font-medium mb-1">Name</label>
-                <input
-                  type="text"
-                  value={formData.name || ''}
-                  onChange={e => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 border rounded"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Description</label>
-                <input
-                  type="text"
-                  value={formData.description || ''}
-                  onChange={e => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-3 py-2 border rounded"
-                />
-              </div>
-              {category === 'cities' && (
-                <div>
-                  <label className="block text-sm font-medium mb-1">Country</label>
-                  <select
-                    value={formData.country || ''}
-                    onChange={e => setFormData({ ...formData, country: e.target.value })}
-                    className="w-full px-3 py-2 border rounded"
-                    required
-                  >
-                    <option value="">Select Country</option>
-                    {[...new Set(referenceCountries)].map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
+                  Remove Orphaned
+                </button>
               )}
-              <div>
-                <label className="block text-sm font-medium mb-1">Icon Image</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleIconUpload}
-                  className="w-full px-3 py-2 border rounded"
-                />
-                {formData.iconUrl && (
-                  <span style={{ display: 'inline-block', background: '#fff', borderRadius: '50%', padding: 4, marginTop: 8 }}>
-                    <img
-                      src={formData.iconUrl}
-                      alt={formData.name || 'icon'}
-                      style={{ width: 32, height: 32, objectFit: 'contain', borderRadius: '50%', background: '#fff' }}
-                    />
-                  </span>
-                )}
-              </div>
-            </>
-          )}
-          <div className="flex gap-2 mt-4">
-            <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded">
-              {editingId ? 'Update' : 'Add'}
-            </button>
-            {editingId && (
-              <button type="button" onClick={() => { setEditingId(null); setFormData(category === 'loyaltyTriggerEvents' ? { id: '', event: '', country: '', city: '' } : { id: '', name: '', description: '', iconUrl: '' }); }} className="px-4 py-2 bg-gray-300 rounded">
-                Cancel
-              </button>
-            )}
+            </div>
           </div>
-        </form>
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                {categoryFields[category].map(field => (
+                  <th key={field.key as string} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{field.label}</th>
+                ))}
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {items.length === 0 ? (
+                <tr><td colSpan={categoryFields[category].length + 1} className="text-center text-gray-500 py-4">No data found for this category.</td></tr>
+              ) : (
+                items.map((item, index) => (
+                  <tr key={item.id || index}>
+                    {categoryFields[category].map(field => {
+                      if (field.key === 'dateAdded') {
+                        let formatted = '';
+                        if (item.dateAdded) {
+                          const d = new Date(item.dateAdded);
+                          if (!isNaN(d.getTime())) {
+                            const date = d.toLocaleDateString();
+                            const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                            formatted = `${date} ${time}`;
+                          } else {
+                            formatted = item.dateAdded;
+                          }
+                        }
+                        return (
+                          <td key={field.key as string} className="pl-2 pr-4 py-2">
+                            <span className="text-xs text-gray-500 whitespace-nowrap">{formatted}</span>
+                          </td>
+                        );
+                      }
+                      let value = item[field.key] ?? '';
+                      return (
+                        <td key={field.key as string} className="px-4 py-2">{value}</td>
+                      );
+                    })}
+                    <td className="px-4 py-2">
+                      <div className="flex gap-2">
+                        <button
+                          className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                          onClick={() => {
+                            let safeItem = { ...item };
+                            if (category === 'weatherConditions') {
+                              Object.keys(safeItem).forEach(key => {
+                                if (Array.isArray(safeItem[key])) safeItem[key] = safeItem[key].join('');
+                                else if (typeof safeItem[key] !== 'string') safeItem[key] = safeItem[key] ?? '';
+                              });
+                              safeItem.country = typeof safeItem.country === 'string' ? safeItem.country : '';
+                              safeItem.city = typeof safeItem.city === 'string' ? safeItem.city : '';
+                            }
+                            // Always set id in formData for editing
+                            setEditingItem(safeItem);
+                            setFormData({ ...safeItem, id: safeItem.id });
+                            setShowForm(true);
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                          onClick={async () => {
+                            if (!window.confirm('Are you sure you want to delete this record?')) return;
+                            const refPath = categoryToPath[category];
+                            await remove(ref(db, `${refPath}/${item.id}`));
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+          {showForm && (
+            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+              <h3 className="text-lg font-semibold mb-2">{editingItem ? 'Edit' : 'Add'} {categoryFields[category][0].label}</h3>
+              <form className="space-y-2" onSubmit={async (e) => {
+                e.preventDefault();
+                const refPath = categoryToPath[category];
+                const now = new Date().toISOString();
+                let baseData: ReferenceItem = {
+                  ...formData,
+                  dateAdded: editingItem ? (formData.dateAdded || now) : now,
+                  addedBy: currentUser?.email || 'Unknown',
+                } as ReferenceItem;
+                // For weatherConditions, sanitize all fields to strings
+                if (category === 'weatherConditions') {
+                  Object.keys(baseData).forEach(key => {
+                    if (Array.isArray(baseData[key])) baseData[key] = baseData[key].join('');
+                    else if (typeof baseData[key] !== 'string') baseData[key] = baseData[key] ?? '';
+                  });
+                  baseData.country = typeof baseData.country === 'string' ? baseData.country : '';
+                  baseData.city = typeof baseData.city === 'string' ? baseData.city : '';
+                }
+                if (editingItem) {
+                  await update(ref(db, `${refPath}/${editingItem.id}`), baseData);
+                } else {
+                  const newRef = push(ref(db, refPath));
+                  await set(newRef, { ...baseData, id: newRef.key });
+                }
+                setShowForm(false);
+                setEditingItem(null);
+                setFormData({});
+                if (category === 'weatherConditions') {
+                  const countriesRef = ref(db, categoryToPath['countries']);
+                  const citiesRef = ref(db, categoryToPath['cities']);
+                  onValue(countriesRef, (snapshot) => {
+                    const data = snapshot.val() || {};
+                    setCountryOptions(Object.values(data).map((item: any) => (item.name || '').trim()));
+                  }, { onlyOnce: true });
+                  onValue(citiesRef, (snapshot) => {
+                    const data = snapshot.val() || {};
+                    setCityOptions(Object.values(data).map((item: any) => (item.name || '').trim()));
+                  }, { onlyOnce: true });
+                }
+              }}>
+                {categoryFields[category].map(field => {
+                  // Country dropdown for cities and weatherConditions
+                  if ((category === 'cities' || category === 'weatherConditions') && field.key === 'country') {
+                    return (
+                      <div key={field.key as string}>
+                        <label className="block text-sm font-medium mb-1">{field.label}</label>
+                        <select
+                          value={typeof formData.country === 'string' ? formData.country : ''}
+                          required={field.required}
+                          onChange={e => setFormData({ ...formData, country: String(e.target.value) })}
+                          className="w-full px-3 py-2 border rounded"
+                        >
+                          <option value="">Select a country</option>
+                          {countryOptions.map((name, idx) => (
+                            <option key={name + '-' + idx} value={name}>{name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  }
+                  // City dropdown for weatherConditions
+                  if (category === 'weatherConditions' && field.key === 'city') {
+                    return (
+                      <div key={field.key as string}>
+                        <label className="block text-sm font-medium mb-1">{field.label}</label>
+                        <select
+                          value={typeof formData.city === 'string' ? formData.city : ''}
+                          required={field.required}
+                          onChange={e => setFormData({ ...formData, city: String(e.target.value) })}
+                          className="w-full px-3 py-2 border rounded"
+                        >
+                          <option value="">Select a city</option>
+                          {cityOptions.map((name, idx) => (
+                            <option key={name + '-' + idx} value={name}>{name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  }
+                  // ...existing code...
+                  // Default input
+                  return (
+                    <div key={field.key as string}>
+                      <label className="block text-sm font-medium mb-1">{field.label}</label>
+                      <input
+                        type={field.type || 'text'}
+                        value={formData[field.key] ?? ''}
+                        required={field.required}
+                        onChange={e => setFormData({ ...formData, [field.key]: field.type === 'number' ? Number(e.target.value) : e.target.value })}
+                        className="w-full px-3 py-2 border rounded"
+                      />
+                    </div>
+                  );
+                })}
+                <div className="flex gap-2 mt-2">
+                  <button type="button" className="px-4 py-2 bg-blue-600 text-white rounded" onClick={() => setShowForm(false)}>Cancel</button>
+                  <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded">{editingItem ? 'Update' : 'Add'}</button>
+                </div>
+              </form>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 };
 
+
+
 export default ReferenceDataManager;
+
 

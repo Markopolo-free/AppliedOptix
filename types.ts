@@ -10,6 +10,7 @@ export type View =
     | 'reference'
     | 'audit'
     | 'fxpricing'
+    | 'fxmarginbuilder'
     | 'discountgroups'
     | 'fxcampaigns'
     | 'fxdiscountoptions'
@@ -18,8 +19,10 @@ export type View =
     | 'customerManager'
     | 'customerActivityManager'
     | 'calculatorService'
+    | 'campaignsReport'
     | 'bundledpricing'
-    | 'companyDetails';
+    | 'companyDetails'
+    | 'discountAmountTypes';
 export interface Customer {
     id: string;
     name: string;

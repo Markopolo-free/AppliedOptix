@@ -1,0 +1,42 @@
+[
+  {
+    "id": "",
+    "name": "Red 1",
+    "description": "Local Flooding",
+    "iconUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEsA…MiOUFA2J5wYBYXjAglhf8HyQlxznnsNNGAAAAAElFTkSuQmCC",
+    "country": "",
+    "city": ""
+  },
+  {
+    "id": "",
+    "name": "White 2",
+    "description": "Blizzard",
+    "iconUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAE4A…XTxrE1ZMGcfWkQVw9+T/RyUAzF3klFQAAAABJRU5ErkJggg==",
+    "country": "",
+    "city": ""
+  },
+  {
+    "id": "",
+    "name": "White 3",
+    "description": "Ice on Roads",
+    "iconUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEUA…vig3mRbHBvCg2mBfFBv8DgXu/LU7NdoAAAAAASUVORK5CYII=",
+    "country": "",
+    "city": ""
+  },
+  {
+    "id": "",
+    "name": "Red 2",
+    "description": "Serious Flooding",
+    "iconUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAE0A…ZJgDJNAFIpglAMk0A/wNPNwrH62BeHwAAAABJRU5ErkJggg==",
+    "country": "",
+    "city": ""
+  },
+  {
+    "id": "",
+    "name": "H1",
+    "description": "Heatwave",
+    "iconUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEUA…okmKBJikWaJJigSYpFvgPBCmbm/4dWoAAAAAASUVORK5CYII=",
+    "country": "",
+    "city": ""
+  }
+]

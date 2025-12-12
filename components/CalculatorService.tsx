@@ -1,8 +1,7 @@
 
 
 import React, { useState, useEffect } from 'react';
-// import { ref, get } from 'firebase/database';
-// import { db } from '../services/firebase';
+import { getDatabase, ref as dbRef, onValue } from 'firebase/database';
 import { CustomerActivity, Service, PricingRule, Campaign, LoyaltyProgram, Bundle } from '../types';
 import { calculatePricing } from './CalculatorService';
 
@@ -37,17 +36,66 @@ const CalculatorService: React.FC<CalculatorServiceProps> = ({ setCurrentView })
   const fetchAll = async () => {
     setLoadingData(true);
     try {
-      // Fetch from Firebase as before (for non-country/city data)
-      // ...existing code for services, pricingRules, campaigns, loyaltyPrograms, bundles, activities, customers...
-      // Fetch countries from micro-service
-      const countriesRes = await fetch('http://localhost:4000/countries');
-      const countriesData = await countriesRes.json();
-      setCountries(countriesData);
-      // If a country is selected, fetch cities for that country
+      const db = getDatabase();
+
+      // Fetch customer activities
+      const activitiesRef = dbRef(db, 'customerActivities');
+      await new Promise<void>((resolve) => {
+        onValue(activitiesRef, (snapshot) => {
+          const data = snapshot.val() || {};
+          const activitiesList = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+          setActivities(activitiesList);
+          resolve();
+        }, { onlyOnce: true });
+      });
+
+      // Fetch customers
+      const customersRef = dbRef(db, 'customers');
+      await new Promise<void>((resolve) => {
+        onValue(customersRef, (snapshot) => {
+          const data = snapshot.val() || {};
+          const customersList = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+          setCustomers(customersList);
+          resolve();
+        }, { onlyOnce: true });
+      });
+
+      // Fetch services from Firebase
+      const servicesRef = dbRef(db, 'services');
+      await new Promise<void>((resolve) => {
+        onValue(servicesRef, (snapshot) => {
+          const data = snapshot.val() || {};
+          const servicesList = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+          setServices(servicesList);
+          resolve();
+        }, { onlyOnce: true });
+      });
+
+      // Fetch countries from Firebase reference data
+      const countriesRef = dbRef(db, 'referenceCountries');
+      await new Promise<void>((resolve) => {
+        onValue(countriesRef, (snapshot) => {
+          const data = snapshot.val() || {};
+          const countryNames = Object.values(data).map((item: any) => item.name).filter(Boolean);
+          setCountries(countryNames);
+          resolve();
+        }, { onlyOnce: true });
+      });
+
+      // If a country is selected, fetch cities for that country from Firebase
       if (selectedCountry) {
-        const citiesRes = await fetch(`http://localhost:4000/cities?country=${encodeURIComponent(selectedCountry)}`);
-        const citiesData = await citiesRes.json();
-        setCities(citiesData);
+        const citiesRef = dbRef(db, 'referenceCities');
+        await new Promise<void>((resolve) => {
+          onValue(citiesRef, (snapshot) => {
+            const data = snapshot.val() || {};
+            const cityNames = Object.values(data)
+              .filter((item: any) => item.country === selectedCountry)
+              .map((item: any) => item.name)
+              .filter(Boolean);
+            setCities(cityNames);
+            resolve();
+          }, { onlyOnce: true });
+        });
       } else {
         setCities([]);
       }
@@ -69,17 +117,23 @@ const CalculatorService: React.FC<CalculatorServiceProps> = ({ setCurrentView })
     if (found) setActivity(found);
   }, [activityId, activities]);
 
-  // Fetch cities when selectedCountry changes
+  // Fetch cities when selectedCountry changes (from Firebase)
   useEffect(() => {
     if (!selectedCountry) {
       setCities([]);
       return;
     }
-    (async () => {
-      const citiesRes = await fetch(`http://localhost:4000/cities?country=${encodeURIComponent(selectedCountry)}`);
-      const citiesData = await citiesRes.json();
-      setCities(citiesData);
-    })();
+    const db = getDatabase();
+    const citiesRef = dbRef(db, 'referenceCities');
+    const unsubscribe = onValue(citiesRef, (snapshot) => {
+      const data = snapshot.val() || {};
+      const cityNames = Object.values(data)
+        .filter((item: any) => item.country === selectedCountry)
+        .map((item: any) => item.name)
+        .filter(Boolean);
+      setCities(cityNames);
+    });
+    return () => unsubscribe();
   }, [selectedCountry]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -137,8 +191,8 @@ const CalculatorService: React.FC<CalculatorServiceProps> = ({ setCurrentView })
             <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
             <select name="country" value={selectedCountry} onChange={e => setSelectedCountry(e.target.value)} className="w-full border px-3 py-2 rounded">
               <option value="">Select country...</option>
-              {countries.map(country => (
-                <option key={country} value={country}>{country}</option>
+              {countries.map((country, idx) => (
+                <option key={`${country}-${idx}`} value={country}>{country}</option>
               ))}
             </select>
           </div>
@@ -146,8 +200,8 @@ const CalculatorService: React.FC<CalculatorServiceProps> = ({ setCurrentView })
             <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
             <select name="city" value={activity.city || ''} onChange={handleChange} className="w-full border px-3 py-2 rounded" disabled={!selectedCountry}>
               <option value="">{!selectedCountry ? 'Select country first...' : 'Select city...'}</option>
-              {cities.map(city => (
-                <option key={`${city}-${selectedCountry}`} value={city}>{city}</option>
+              {cities.map((city, idx) => (
+                <option key={`${city}-${selectedCountry}-${idx}`} value={city}>{city}</option>
               ))}
             </select>
           </div>
@@ -171,7 +225,11 @@ const CalculatorService: React.FC<CalculatorServiceProps> = ({ setCurrentView })
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Service</label>
                 <select name="serviceId" value={activity.serviceId} onChange={handleChange} className="w-full border px-3 py-2 rounded">
-                  {services.map(s => <option key={s.id} value={s.id}>{s.name} ({s.location})</option>)}
+                  {services
+                    .filter(s => s.id === activity.serviceId)
+                    .map(s => (
+                      <option key={s.id} value={s.id}>{s.name} ({s.location})</option>
+                    ))}
                 </select>
               </div>
               <div>
@@ -192,7 +250,17 @@ const CalculatorService: React.FC<CalculatorServiceProps> = ({ setCurrentView })
               <div className="mb-1"><strong>City:</strong> {activity.city || 'Unknown'}</div>
               <div className="mb-1"><strong>Reason:</strong> {result.reason}</div>
               <div className="mt-4">
-                <h3 className="font-semibold mb-1">Rule Values Used:</h3>
+                <h3 className="font-semibold mb-1">Calculation Breakdown:</h3>
+                <ul className="text-sm text-gray-700 space-y-1">
+                  {result.breakdown && result.breakdown.length > 0 ? (
+                    result.breakdown.map((step: string, idx: number) => (
+                      <li key={idx}>{step}</li>
+                    ))
+                  ) : (
+                    <li>No breakdown available.</li>
+                  )}
+                </ul>
+                <h3 className="font-semibold mt-4 mb-1">Rule Values Used:</h3>
                 <ul className="text-sm text-gray-700 space-y-1">
                   {result.ruleDetails?.service && (
                     <li><strong>Service:</strong> {result.ruleDetails.service.name} (Base price: €{result.ruleDetails.service.price})</li>
@@ -218,37 +286,24 @@ const CalculatorService: React.FC<CalculatorServiceProps> = ({ setCurrentView })
         </div>
       ) : null}
 
-      {/* Customer Campaign Report - moved to separate section */}
-      {result && activityId && (
+      {/* Customer Campaign Report - always show impacting campaign */}
+      {result && activityId && result.ruleDetails?.campaign && (
         <div className="mt-8 p-4 bg-white rounded shadow">
           <h3 className="font-semibold mb-2">Customer Campaign Report</h3>
           <table className="min-w-full text-sm border border-gray-300 rounded">
             <thead className="bg-gray-200">
               <tr>
                 <th className="px-3 py-2 text-left">Campaign Name</th>
-                <th className="px-3 py-2 text-left">Points Awarded</th>
+                <th className="px-3 py-2 text-left">Discount Value</th>
                 <th className="px-3 py-2 text-left">Status</th>
               </tr>
             </thead>
             <tbody>
-              {campaigns.filter(camp => {
-                // Only show campaigns that impacted the selected activity (price calculator result)
-                if (!activity || !result || !result.ruleDetails?.campaign) return false;
-                // Match by campaign id from price calculator result
-                return camp.id === result.ruleDetails.campaign.id;
-              }).map(camp => {
-                let points = camp.discountValue;
-                if (result.ruleDetails?.loyalty && typeof result.ruleDetails.loyalty.pointsPerEuro === 'number' && typeof result.finalPrice === 'number') {
-                  points = Math.round(result.finalPrice * result.ruleDetails.loyalty.pointsPerEuro);
-                }
-                return (
-                  <tr key={camp.id}>
-                    <td className="px-3 py-2">{camp.name}</td>
-                    <td className="px-3 py-2">{points}</td>
-                    <td className="px-3 py-2">{camp.status}</td>
-                  </tr>
-                );
-              })}
+              <tr>
+                <td className="px-3 py-2">{result.ruleDetails.campaign.name}</td>
+                <td className="px-3 py-2">{result.ruleDetails.campaign.discountValue}</td>
+                <td className="px-3 py-2">{result.ruleDetails.campaign.status || '-'}</td>
+              </tr>
             </tbody>
           </table>
         </div>

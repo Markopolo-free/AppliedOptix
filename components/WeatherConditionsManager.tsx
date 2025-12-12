@@ -9,7 +9,7 @@ const WeatherConditionsManager: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    const conditionsRef = ref(db, 'weatherConditions');
+    const conditionsRef = ref(db, 'referenceWeatherConditions');
     const unsubscribe = onValue(conditionsRef, (snapshot) => {
       const data = snapshot.val() || {};
   const arr = Object.entries(data).map(([id, cond]) => ({ id, ...(typeof cond === 'object' && cond !== null ? cond : {}) }));
@@ -19,7 +19,6 @@ const WeatherConditionsManager: React.FC = () => {
           id: cond.id,
           name: cond.name || '',
           description: cond.description || '',
-          icon: cond.icon || '',
           severity: cond.severity || '',
           lastModifiedBy: cond.lastModifiedBy || '',
           lastModifiedAt: cond.lastModifiedAt || ''
@@ -36,18 +35,17 @@ const WeatherConditionsManager: React.FC = () => {
   const handleSave = async () => {
     if (!newCondition.name) return;
     setIsSaving(true);
-    const conditionsRef = ref(db, 'weatherConditions');
+    const conditionsRef = ref(db, 'referenceWeatherConditions');
     await push(conditionsRef, {
       name: newCondition.name,
       description: newCondition.description || '',
-      iconUrl: newCondition.iconUrl || '',
     });
     setNewCondition({});
     setIsSaving(false);
   };
 
   const handleDelete = async (id: string) => {
-    await remove(ref(db, `weatherConditions/${id}`));
+    await remove(ref(db, `referenceWeatherConditions/${id}`));
   };
 
   return (
@@ -69,13 +67,7 @@ const WeatherConditionsManager: React.FC = () => {
           onChange={e => handleChange('description', e.target.value)}
           className="mb-2 w-full px-3 py-2 border rounded"
         />
-        <input
-          type="text"
-          placeholder="Icon URL"
-          value={newCondition.iconUrl || ''}
-          onChange={e => handleChange('iconUrl', e.target.value)}
-          className="mb-2 w-full px-3 py-2 border rounded"
-        />
+        {/* Icon field removed */}
         <button
           onClick={handleSave}
           disabled={isSaving || !newCondition.name}
@@ -89,7 +81,7 @@ const WeatherConditionsManager: React.FC = () => {
           <tr>
             <th className="px-4 py-2">Name</th>
             <th className="px-4 py-2">Description</th>
-            <th className="px-4 py-2">Icon</th>
+            {/* Icon column removed */}
             <th className="px-4 py-2">Actions</th>
           </tr>
         </thead>
@@ -98,9 +90,7 @@ const WeatherConditionsManager: React.FC = () => {
             <tr key={cond.id}>
               <td className="px-4 py-2">{cond.name}</td>
               <td className="px-4 py-2">{cond.description}</td>
-              <td className="px-4 py-2">
-                {cond.iconUrl ? <img src={cond.iconUrl} alt={cond.name} className="h-8 w-8" /> : '—'}
-              </td>
+              {/* Icon cell removed */}
               <td className="px-4 py-2">
                 <button
                   onClick={() => handleDelete(cond.id)}

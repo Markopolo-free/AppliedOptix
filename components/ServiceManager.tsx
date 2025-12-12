@@ -126,10 +126,10 @@ const ServiceManager: React.FC = () => {
         if (formData.country) {
             const filtered = cities
                 .filter(city => {
-                    // Match exact country or include cities with empty country (legacy German cities)
+                    // Only include cities with a valid country, or legacy German cities
                     if (city.country === formData.country) return true;
-                    // If city has no country and we're selecting Germany, include it (legacy data)
                     if (!city.country && formData.country === 'Germany') return true;
+                    // Ignore cities with empty country for other selections
                     return false;
                 })
                 .map(city => city.name)

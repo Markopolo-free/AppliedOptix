@@ -1,0 +1,68 @@
+[
+  {
+    "id": "-OdDghILQClPf_eOELDn",
+    "capPeriod": "monthly",
+    "capType": "amount",
+    "capValue": 1.86,
+    "discountType": "percentage",
+    "discountValue": 0.1,
+    "effectiveDate": "2025-11-04",
+    "expiryDate": "2025-12-02",
+    "lastModifiedAt": "2025-11-18T07:15:46.223Z",
+    "lastModifiedBy": "markis@gmail.com",
+    "name": "Students",
+    "serviceIds": [
+      "-OcoSrA3EHrozStOCtX2",
+      "-OcobjvykpeAZklikhUT"
+    ]
+  },
+  {
+    "id": "-OdEo8Qjr2t0VgehV4Ai",
+    "capPeriod": "monthly",
+    "capType": "km",
+    "capValue": 500,
+    "discountType": "percentage",
+    "discountValue": 25,
+    "effectiveDate": "2025-12-01",
+    "expiryDate": "2025-12-31",
+    "lastModifiedAt": "2025-11-18T07:15:51.682Z",
+    "lastModifiedBy": "markis@gmail.com",
+    "name": "Corporate Real Estate AG Snr Execs",
+    "serviceIds": [
+      "-OcoSrA3EHrozStOCtX2",
+      "-OcoaO-KiRjyTmksnNEi"
+    ]
+  },
+  {
+    "id": "-OdSMAGk_He-t5CVIBFH",
+    "capPeriod": "monthly",
+    "capType": "km",
+    "capValue": 7.1,
+    "discountType": "fixed",
+    "discountValue": 0.41,
+    "effectiveDate": "2025-11-07",
+    "expiryDate": "2025-12-01",
+    "lastModifiedAt": "2025-11-18T07:15:57.240Z",
+    "lastModifiedBy": "markis@gmail.com",
+    "name": "Circus Clowns",
+    "serviceIds": [
+      "-Od9gJDh3WH_ncB6KYmd"
+    ]
+  },
+  {
+    "id": "-OdSMj3riCFJDhSzyvVz",
+    "capPeriod": "monthly",
+    "capType": "km",
+    "capValue": 0.59,
+    "discountType": "fixed",
+    "discountValue": 1,
+    "effectiveDate": "2025-11-02",
+    "expiryDate": "2025-11-06",
+    "lastModifiedAt": "2025-11-07T08:11:34.666Z",
+    "lastModifiedBy": "markis@gmail.com",
+    "name": "Expired",
+    "serviceIds": [
+      "-OcoSrA3EHrozStOCtX2"
+    ]
+  }
+]

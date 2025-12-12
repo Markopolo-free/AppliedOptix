@@ -37,19 +37,22 @@ const CompanyDetailsManager: React.FC = () => {
     const typesRef = ref(db, 'referenceCompanyTypes');
     const unsubTypes = onValue(typesRef, (snapshot) => {
       const data = snapshot.val() || {};
-      setCompanyTypes(Object.values(data).map((item: any) => item.name).filter(Boolean));
+      const arr = Object.values(data).map((item) => (item as { name?: string }).name).filter(Boolean);
+      setCompanyTypes([...new Set(arr)]);
     });
     // Load countries
     const countriesRef = ref(db, 'referenceCountries');
     const unsubCountries = onValue(countriesRef, (snapshot) => {
       const data = snapshot.val() || {};
-      setCountries(Object.values(data).map((item: any) => item.name).filter(Boolean));
+      const arr = Object.values(data).map((item) => (item as { name?: string }).name).filter(Boolean);
+      setCountries([...new Set(arr)]);
     });
     // Load cities
     const citiesRef = ref(db, 'referenceCities');
     const unsubCities = onValue(citiesRef, (snapshot) => {
       const data = snapshot.val() || {};
-      setCities(Object.values(data).map((item: any) => item.name).filter(Boolean));
+      const arr = Object.values(data).map((item) => (item as { name?: string }).name).filter(Boolean);
+      setCities([...new Set(arr)]);
     });
     return () => {
       unsubCompanies();
