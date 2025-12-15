@@ -7,8 +7,8 @@
     "discountType": "percentage",
     "discountValue": 0.1,
     "effectiveDate": "2025-11-04",
-    "expiryDate": "2025-12-02",
-    "lastModifiedAt": "2025-11-18T07:15:46.223Z",
+    "expiryDate": "2026-01-10",
+    "lastModifiedAt": "2025-12-11T12:59:44.214Z",
     "lastModifiedBy": "markis@gmail.com",
     "name": "Students",
     "serviceIds": [
@@ -41,8 +41,8 @@
     "discountType": "fixed",
     "discountValue": 0.41,
     "effectiveDate": "2025-11-07",
-    "expiryDate": "2025-12-01",
-    "lastModifiedAt": "2025-11-18T07:15:57.240Z",
+    "expiryDate": "2026-01-10",
+    "lastModifiedAt": "2025-12-11T12:59:51.324Z",
     "lastModifiedBy": "markis@gmail.com",
     "name": "Circus Clowns",
     "serviceIds": [
@@ -57,8 +57,8 @@
     "discountType": "fixed",
     "discountValue": 1,
     "effectiveDate": "2025-11-02",
-    "expiryDate": "2025-11-06",
-    "lastModifiedAt": "2025-11-07T08:11:34.666Z",
+    "expiryDate": "2025-12-06",
+    "lastModifiedAt": "2025-12-11T12:59:57.451Z",
     "lastModifiedBy": "markis@gmail.com",
     "name": "Expired",
     "serviceIds": [

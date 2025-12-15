@@ -25,8 +25,8 @@ async function main() {
       console.log(`FX Discount Group: ${g.name}`);
       console.log(`  Currency: ${g.currency}`);
       console.log(`  Discount: ${g.discountAmount}${g.discountAmountType}`);
-      if (g.serviceItem) {
-        console.log(`  Product: ${g.serviceItem}`);
+      if (g.product) {
+        console.log(`  Product: ${g.product}`);
       }
       console.log('');
     });

@@ -93,9 +93,38 @@ const FXMarginBuilder = () => {
   const handleAdd = async () => {
     const db = getDatabase();
     const marginRef = ref(db, 'fxMarginRecords');
+    // Calculate AIM (All-In-Margin) based on form/coreMargin and discountGroups
+    let aim = 0;
+    let aimBreakdown = [];
+    const [base, quote] = form.currencyPair.split('_');
+    let coreMarginVal = parseFloat(form.coreMargin ? form.coreMargin.replace('%','') : '0');
+    let aimVal = coreMarginVal;
+    const matchingGroups = discountGroups.filter(g => {
+      return g.currency === base && g.product === form.product;
+    });
+    matchingGroups.forEach(g => {
+      if ((g.discountType === '%' || g.discountAmountType === 'percentage') && g.discountValue) {
+        const discount = parseFloat(g.discountValue);
+        if (!isNaN(discount)) {
+          aimVal = aimVal * (1 - discount / 100);
+          aimBreakdown.push({
+            type: 'Discount Group',
+            name: g.name,
+            discountType: g.discountType,
+            amount: discount,
+            channel: g.channel || '',
+            segment: g.segment || '',
+            totalRelationshipBalance: g.totalRelationshipBalance || '',
+            overrideValue: g.overrideValue || ''
+          });
+        }
+      }
+    });
+    aim = aimVal;
     const record = {
       ...form,
       aim,
+      aimBreakdown,
       createdAt: new Date().toISOString(),
       lastModifiedAt: new Date().toISOString()
     };
@@ -265,7 +294,28 @@ const FXMarginBuilder = () => {
                     <tr key={rowId}>
                       <td className="px-4 py-2 border-b text-center">{pair.name}</td>
                       <td className="px-4 py-2 border-b text-center">{priceTier}</td>
-                      <td className="px-4 py-2 border-b text-center">{product}</td>
+                      <td className="px-4 py-2 border-b text-center">
+                        <select
+                          className="w-full border rounded px-2 py-1"
+                          value={product}
+                          onChange={async (e) => {
+                            const newProduct = e.target.value;
+                            // Update in DB
+                            if (marginRecord && marginRecord.id) {
+                              const db = getDatabase();
+                              const marginRef = ref(db, `fxMarginRecords/${marginRecord.id}`);
+                              await import('firebase/database').then(({ update }) =>
+                                update(marginRef, { product: newProduct })
+                              );
+                            }
+                          }}
+                        >
+                          <option value="">Select</option>
+                          {serviceTypes.map(st => (
+                            <option key={st.id} value={st.id}>{st.name}</option>
+                          ))}
+                        </select>
+                      </td>
                       <td className="px-4 py-2 border-b text-center">
                         <input
                           type="number"
@@ -282,17 +332,34 @@ const FXMarginBuilder = () => {
                           let aimVal = coreMarginVal;
                           let breakdown = [];
                           const matchingGroups = discountGroups.filter(g => {
-                            return g.currency === base && g.serviceItem === product;
+                            return g.currency === base && g.product === product;
                           });
                           matchingGroups.forEach(g => {
-                            if (g.discountType === '%' && g.discountValue) {
-                              const discount = parseFloat(g.discountValue);
+                            const discountType = g.discountAmountType || g.discountType || '';
+                            const discountValue = g.discountAmount || g.discountValue || 0;
+                            if (discountType.toLowerCase().includes('percent')) {
+                              const discount = parseFloat(discountValue);
                               if (!isNaN(discount)) {
                                 aimVal = aimVal * (1 - discount / 100);
                                 breakdown.push({
                                   type: 'Discount Group',
                                   name: g.name,
-                                  discountType: g.discountType,
+                                  discountType: discountType,
+                                  amount: discount,
+                                  channel: g.channel || '',
+                                  segment: g.segment || '',
+                                  totalRelationshipBalance: g.totalRelationshipBalance || '',
+                                  overrideValue: g.overrideValue || ''
+                                });
+                              }
+                            } else if (discountType.toLowerCase().includes('value')) {
+                              const discount = parseFloat(discountValue);
+                              if (!isNaN(discount)) {
+                                aimVal = aimVal - discount;
+                                breakdown.push({
+                                  type: 'Discount Group',
+                                  name: g.name,
+                                  discountType: discountType,
                                   amount: discount,
                                   channel: g.channel || '',
                                   segment: g.segment || '',

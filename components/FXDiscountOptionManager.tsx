@@ -17,10 +17,11 @@ const FXDiscountOptionManager: React.FC = () => {
   const [fxSegments, setFxSegments] = useState<string[]>([]);
   const { currentUser } = useAuth();
 
+  const [serviceTypes, setServiceTypes] = useState<{ id: string; name: string }[]>([]);
   const [newOption, setNewOption] = useState({
     name: '',
     description: '',
-    serviceItem: '',
+    product: '',
     fxSegment: '',
     discountType: 'Cashback' as 'Cashback' | 'Discount' | 'Bonus Points' | 'Fee Waiver',
     discountAmountType: 'value' as 'value' | 'percentage' | 'pips',
@@ -32,6 +33,18 @@ const FXDiscountOptionManager: React.FC = () => {
     startDate: getTodayString(),
     endDate: '',
   });
+  // Fetch Service Types (Products) from reference data
+  useEffect(() => {
+    const serviceTypesRef = ref(db, 'referenceServiceTypes');
+    const unsubscribe = onValue(serviceTypesRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        const list = Object.entries(data).map(([id, s]: any) => ({ id, name: s.name }));
+        setServiceTypes(list);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Helper function to get today's date in YYYY-MM-DD format
   function getTodayString(): string {
@@ -123,7 +136,7 @@ const FXDiscountOptionManager: React.FC = () => {
     setNewOption({
       name: '',
       description: '',
-      serviceItem: '',
+      product: '',
       fxSegment: '',
       discountType: 'Cashback',
       discountAmountType: 'value',
@@ -143,7 +156,7 @@ const FXDiscountOptionManager: React.FC = () => {
     setNewOption({
       name: option.name,
       description: option.description,
-      serviceItem: option.serviceItem,
+      product: option.product,
       fxSegment: option.fxSegment,
       discountType: option.discountType,
       discountAmountType: option.discountAmountType,
@@ -178,11 +191,10 @@ const FXDiscountOptionManager: React.FC = () => {
   const calculateChanges = (oldData: FXDiscountOption, newData: any) => {
     const changes = [];
     const fieldsToCompare = [
-      'name', 'description', 'serviceItem', 'fxSegment', 'discountType',
+      'name', 'description', 'product', 'fxSegment', 'discountType',
       'discountAmountType', 'discountAmount', 'maxCapType', 'currency',
       'capPeriodStart', 'capPeriodEnd', 'startDate', 'endDate'
     ];
-    
     for (const field of fieldsToCompare) {
       if (oldData[field as keyof FXDiscountOption] !== newData[field]) {
         changes.push({
@@ -325,7 +337,7 @@ const FXDiscountOptionManager: React.FC = () => {
               <tr>
                 <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Group Number</th>
                 <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Name</th>
-                <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Service Item</th>
+                <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Product</th>
                 <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">FX Segment</th>
                 <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Discount</th>
                 <th className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Offer Period</th>
@@ -366,7 +378,9 @@ const FXDiscountOptionManager: React.FC = () => {
                         <div className={`${isExpired ? 'text-yellow-500' : 'text-gray-500'} text-sm`}>{option.description}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className={`${isExpired ? 'text-yellow-600' : 'text-gray-700'}`}>{option.serviceItem}</div>
+                        <div className={`${isExpired ? 'text-yellow-600' : 'text-gray-700'}`}>{
+                          serviceTypes.find(st => st.id === option.product)?.name || option.product || ''
+                        }</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className={`${isExpired ? 'text-yellow-600' : 'text-gray-700'}`}>{option.fxSegment}</div>
@@ -444,18 +458,22 @@ const FXDiscountOptionManager: React.FC = () => {
                   ></textarea>
                 </div>
                 <div>
-                  <label htmlFor="serviceItem" className="block text-sm font-medium text-gray-700">
-                    Service Item
+                  <label htmlFor="product" className="block text-sm font-medium text-gray-700">
+                    Product
                   </label>
-                  <input
-                    type="text"
-                    name="serviceItem"
-                    id="serviceItem"
-                    value={newOption.serviceItem}
+                  <select
+                    name="product"
+                    id="product"
+                    value={newOption.product}
                     onChange={handleInputChange}
                     className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                     required
-                  />
+                  >
+                    <option value="">Select Product</option>
+                    {serviceTypes.map(product => (
+                      <option key={product.id} value={product.id}>{product.name}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label htmlFor="fxSegment" className="block text-sm font-medium text-gray-700">

@@ -311,7 +311,7 @@ export interface FXDiscountOption {
     optionNumber: string; // Auto-generated unique option number
     name: string;
     description: string;
-    serviceItem: string; // Specific FX service/product
+    product: string; // Product (matches FX Margin Builder dropdown)
     fxSegment: string; // FX Segment from reference data
     discountType: 'Cashback' | 'Discount' | 'Bonus Points' | 'Fee Waiver';
     discountAmountType: 'value' | 'percentage' | 'pips'; // Type of discount amount
