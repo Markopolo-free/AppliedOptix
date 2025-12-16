@@ -1,4 +1,4 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
 import { getMessaging, getToken, onMessage, Messaging } from 'firebase/messaging';
 import { ref, set, serverTimestamp } from 'firebase/database';
 import { firebaseConfig } from '../firebaseConfig';
@@ -9,7 +9,7 @@ let messaging: Messaging | null = null;
 export const initNotifications = async () => {
   try {
     // Initialize Firebase if not already done
-    const app = initializeApp(firebaseConfig);
+    const app = getApps()[0] || initializeApp(firebaseConfig);
     messaging = getMessaging(app);
     
     console.log('Firebase Messaging initialized');
