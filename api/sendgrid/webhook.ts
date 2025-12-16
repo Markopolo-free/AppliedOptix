@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import admin from 'firebase-admin';
+import { EventWebhook, EventWebhookHeader } from '@sendgrid/eventwebhook';
 
 // Lazy singleton init for firebase-admin in serverless context
 function initAdminOnce() {
@@ -67,12 +68,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return bad(res, 405, 'Method not allowed');
   }
 
-  // Simple shared-secret auth
-  const tokenParam = (req.query.token as string) || '';
-  const authHeader = req.headers['authorization'] || '';
-  const suppliedToken = tokenParam || (authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '');
+  // Authentication: Signed Webhook (preferred) and/or shared-secret token fallback
   const expectedToken = process.env.SENDGRID_WEBHOOK_TOKEN || '';
-  if (!expectedToken || suppliedToken !== expectedToken) {
+  const publicKey = process.env.SENDGRID_PUBLIC_KEY || '';
+
+  const tokenParam = (req.query.token as string) || '';
+  const authHeader = (req.headers['authorization'] as string) || '';
+  const suppliedToken = tokenParam || (authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '');
+
+  // Attempt signature verification if a public key is configured
+  let signatureOk = false;
+  if (publicKey) {
+    try {
+      const sigHeader = (req.headers[EventWebhookHeader.SIGNATURE()] as string) || (req.headers['x-twilio-email-event-webhook-signature'] as string);
+      const tsHeader = (req.headers[EventWebhookHeader.TIMESTAMP()] as string) || (req.headers['x-twilio-email-event-webhook-timestamp'] as string);
+      if (sigHeader && tsHeader) {
+        const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? '');
+        const ew = new EventWebhook();
+        const key = ew.convertPublicKeyToECDSA(publicKey);
+        signatureOk = ew.verifySignature(key, rawBody, sigHeader, tsHeader);
+      }
+    } catch {}
+  }
+
+  // Accept if signature is valid OR shared token matches (fallback for testing)
+  const tokenOk = expectedToken && suppliedToken === expectedToken;
+  if (!signatureOk && !tokenOk) {
     return bad(res, 401, 'Unauthorized');
   }
 
