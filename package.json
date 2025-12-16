@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@google/genai": "^1.27.0",
-    "@sendgrid/eventwebhook": "^8.1.6",
+    "@sendgrid/eventwebhook": "^8.0.0",
     "@sendgrid/mail": "^8.1.6",
     "dotenv": "^17.2.3",
     "firebase": "^12.4.0",
