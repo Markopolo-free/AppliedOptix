@@ -84,7 +84,7 @@
     </div>
 
     <script type="module">
-      import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+      import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
       import { getMessaging, getToken } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js';
       import { getDatabase, ref, set, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
 
@@ -114,7 +114,7 @@
       async function main() {
         try {
           statusEl.textContent = 'Initializing Firebase…';
-          const app = initializeApp(config);
+          const app = getApps()[0] || initializeApp(config);
           const messaging = getMessaging(app);
           currentDb = getDatabase(app);
 
