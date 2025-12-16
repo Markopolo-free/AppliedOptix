@@ -22,7 +22,11 @@ export type View =
     | 'campaignsReport'
     | 'bundledpricing'
     | 'companyDetails'
-    | 'discountAmountTypes';
+    | 'discountAmountTypes'
+    | 'mgmNotifications'
+    | 'pushTestAdmin'
+    | 'tokenListAdmin'
+    | 'referralCodes';
 export interface Customer {
     id: string;
     name: string;

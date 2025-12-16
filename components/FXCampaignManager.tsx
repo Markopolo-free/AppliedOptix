@@ -70,6 +70,7 @@ function FXCampaignManager() {
   const [countries, setCountries] = useState<string[]>([]);
   const [cities, setCities] = useState<Array<{ id: string; name: string; country: string }>>([]);
   const [filteredCities, setFilteredCities] = useState<string[]>([]);
+  const [serviceTypes, setServiceTypes] = useState<Array<{ id: string; type: string; name: string }>>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newCampaign, setNewCampaign] = useState(initialNewCampaignState);
@@ -97,6 +98,30 @@ function FXCampaignManager() {
       }
     };
     loadCurrencies();
+  }, []);
+
+  // Fetch service types from services collection
+  useEffect(() => {
+    const fetchServiceTypes = async () => {
+      try {
+        const servicesRef = ref(db, 'services');
+        const snapshot = await get(servicesRef);
+        if (snapshot.exists()) {
+          const data = snapshot.val();
+          const serviceList = Object.keys(data).map((key) => ({
+            id: key,
+            type: data[key].type || '',
+            name: data[key].name || '',
+          }));
+          // Get unique service types
+          const uniqueTypes = Array.from(new Set(serviceList.map(s => s.type).filter(Boolean)));
+          setServiceTypes(uniqueTypes.map(type => ({ id: type, type, name: type })));
+        }
+      } catch (error) {
+        console.error('Error fetching service types:', error);
+      }
+    };
+    fetchServiceTypes();
   }, []);
 
   // Fetch countries from reference data
@@ -149,6 +174,8 @@ function FXCampaignManager() {
           (newCampaign.countryId === 'Germany' && city.country === '')
         )
         .map((city) => city.name)
+        // Remove duplicates by using Set
+        .filter((name, index, arr) => arr.indexOf(name) === index)
         .sort((a, b) => a.localeCompare(b));
       setFilteredCities(filtered);
     } else {
@@ -595,18 +622,23 @@ function FXCampaignManager() {
                 </div>
                 <div>
                   <label htmlFor="serviceItem" className="block text-sm font-medium text-gray-700">
-                    Service Item
+                    Service Type
                   </label>
-                  <input
-                    type="text"
+                  <select
                     name="serviceItem"
                     id="serviceItem"
                     value={newCampaign.serviceItem}
                     onChange={handleInputChange}
-                    placeholder="e.g., International Transfer"
                     className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                     required
-                  />
+                  >
+                    <option value="">Select Service Type</option>
+                    {serviceTypes.map((st) => (
+                      <option key={st.id} value={st.type}>
+                        {st.type}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label htmlFor="discountType" className="block text-sm font-medium text-gray-700">

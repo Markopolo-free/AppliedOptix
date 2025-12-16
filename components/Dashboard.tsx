@@ -2,6 +2,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { ref, get } from 'firebase/database';
 import { db } from '../services/firebase';
+import { NotificationPermissionComponent } from './NotificationPermissionComponent';
 const ChartLazy = React.lazy(() => import('./ChartLazy'));
 
 interface EntityCount {
@@ -110,6 +111,8 @@ const Dashboard: React.FC = () => {
   return (
     <div className="relative pb-24">
       <h1 className="text-3xl font-bold text-gray-800 mb-6">Dashboard</h1>
+
+      <NotificationPermissionComponent />
 
       {loading ? (
         <div className="flex items-center justify-center h-64">

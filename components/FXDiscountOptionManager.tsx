@@ -17,7 +17,7 @@ const FXDiscountOptionManager: React.FC = () => {
   const [fxSegments, setFxSegments] = useState<string[]>([]);
   const { currentUser } = useAuth();
 
-  const [serviceTypes, setServiceTypes] = useState<{ id: string; name: string }[]>([]);
+  const [serviceTypes, setServiceTypes] = useState<{ id: string; name: string; type?: string }[]>([]);
   const [newOption, setNewOption] = useState({
     name: '',
     description: '',
@@ -33,14 +33,16 @@ const FXDiscountOptionManager: React.FC = () => {
     startDate: getTodayString(),
     endDate: '',
   });
-  // Fetch Service Types (Products) from reference data
+  // Fetch Services (Products) to use Service Management Type and ID consistently
   useEffect(() => {
-    const serviceTypesRef = ref(db, 'referenceServiceTypes');
-    const unsubscribe = onValue(serviceTypesRef, (snapshot) => {
+    const servicesRef = ref(db, 'services');
+    const unsubscribe = onValue(servicesRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.val();
-        const list = Object.entries(data).map(([id, s]: any) => ({ id, name: s.name }));
+        const list = Object.entries(data).map(([id, s]: any) => ({ id, name: s.name, type: s.type }));
         setServiceTypes(list);
+      } else {
+        setServiceTypes([]);
       }
     });
     return () => unsubscribe();
@@ -208,6 +210,7 @@ const FXDiscountOptionManager: React.FC = () => {
   };
 
   const handleSaveOption = async (e: React.FormEvent) => {
+
     e.preventDefault();
 
     if (!newOption.currency) {
@@ -215,9 +218,21 @@ const FXDiscountOptionManager: React.FC = () => {
       return;
     }
 
-    console.log('DEBUG newOption at save:', newOption);
+    // Ensure product is a service ID, not a name
+    let productId = newOption.product;
+    // If the product is not found in serviceTypes by ID, but is found by name, fix it
+    const foundById = serviceTypes.find(st => st.id === productId);
+    if (!foundById) {
+      const foundByName = serviceTypes.find(st => st.name === productId);
+      if (foundByName) {
+        productId = foundByName.id;
+        alert('Product was set by name instead of ID. Automatically corrected to use the service ID.');
+      }
+    }
+
     const optionData = {
       ...newOption,
+      product: productId,
       currency: newOption.currency || '', // Always include currency explicitly
       optionNumber: editingOption?.optionNumber || generateOptionNumber(),
       lastModifiedBy: currentUser?.email || 'system',
@@ -379,7 +394,13 @@ const FXDiscountOptionManager: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className={`${isExpired ? 'text-yellow-600' : 'text-gray-700'}`}>{
-                          serviceTypes.find(st => st.id === option.product)?.name || option.product || ''
+                          (() => {
+                            const match = serviceTypes.find(st => st.id === option.product);
+                            if (match) {
+                              return match.type ? `${match.type} — ${match.name}` : match.name;
+                            }
+                            return option.product || '';
+                          })()
                         }</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -471,7 +492,9 @@ const FXDiscountOptionManager: React.FC = () => {
                   >
                     <option value="">Select Product</option>
                     {serviceTypes.map(product => (
-                      <option key={product.id} value={product.id}>{product.name}</option>
+                      <option key={product.id} value={product.id}>
+                        {product.type ? `${product.type} — ${product.name}` : product.name}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -591,7 +614,6 @@ const FXDiscountOptionManager: React.FC = () => {
                     id="capPeriodStart"
                     value={newOption.capPeriodStart}
                     onChange={handleInputChange}
-                    min={getTodayString()}
                     className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                     required
                   />
@@ -606,7 +628,7 @@ const FXDiscountOptionManager: React.FC = () => {
                     id="capPeriodEnd"
                     value={newOption.capPeriodEnd}
                     onChange={handleInputChange}
-                    min={newOption.capPeriodStart || getTodayString()}
+                    min={newOption.capPeriodStart || ''}
                     className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                     required
                   />
@@ -621,7 +643,6 @@ const FXDiscountOptionManager: React.FC = () => {
                     id="startDate"
                     value={newOption.startDate}
                     onChange={handleInputChange}
-                    min={getTodayString()}
                     className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                     required
                   />
@@ -636,7 +657,7 @@ const FXDiscountOptionManager: React.FC = () => {
                     id="endDate"
                     value={newOption.endDate}
                     onChange={handleInputChange}
-                    min={newOption.startDate || getTodayString()}
+                    min={newOption.startDate || ''}
                     className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                     required
                   />

@@ -8,11 +8,23 @@
   },
   "scripts": {
     "dev": "vite",
+    "api": "node scripts/apiServer.cjs",
+    "dev:force": "node scripts/killPort.cjs 3002 && vite",
+    "kill-port": "node scripts/killPort.cjs",
+    "kill-3002": "node scripts/killPort.cjs 3002",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "mgm:auto": "node scripts/autoProcessMgmPushMessages.cjs",
+    "mgm:process": "node scripts/processMgmPushMessages.cjs",
+    "ref-data:harvest:cities": "node scripts/harvestReferenceCities.js",
+    "email:diagnose": "node scripts/diagnoseEmailSends.cjs",
+    "referral:list": "node scripts/listReferralCodes.cjs",
+    "referral:register": "node scripts/registerWithReferralCode.cjs",
+    "referral:email": "node scripts/sendReferralEmail.cjs"
   },
   "dependencies": {
     "@google/genai": "^1.27.0",
+    "@sendgrid/mail": "^8.1.6",
     "dotenv": "^17.2.3",
     "firebase": "^12.4.0",
     "firebase-admin": "^13.6.0",

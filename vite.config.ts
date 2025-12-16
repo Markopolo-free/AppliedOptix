@@ -30,15 +30,21 @@ export default defineConfig(async ({ mode }) => {
     return {
       base: mode === 'production' ? './' : '/',
       server: {
-        port: 3001,
+        port: 3002,
         host: '0.0.0.0',
-        strictPort: false,
+        strictPort: true,
         headers: {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
           'Access-Control-Allow-Headers': 'X-Requested-With, content-type, Authorization',
         },
-        proxy: isTunnel ? undefined : undefined,
+        proxy: isTunnel ? undefined : {
+          '/api': {
+            target: 'http://localhost:5050',
+            changeOrigin: true,
+            secure: false,
+          }
+        },
         hmr: isTunnel
           ? false  // Disable HMR for tunnel to prevent hanging
           : true,

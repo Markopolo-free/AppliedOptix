@@ -1,15 +1,19 @@
-import React, { useState, lazy, Suspense } from 'react';
+import React, { useState, lazy, Suspense, useEffect } from 'react';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 import LandingPage from './components/LandingPage';
 import Sidebar from './components/Sidebar';
 import { View } from './types';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
+import { NotificationToast } from './components/NotificationToast';
+import { initNotifications } from './services/notificationService';
+import TokenStatus from './components/TokenStatus';
 
 
 // Lazy-load manager components for route-based code splitting
-const FXMarginBuilder = lazy(() => import('./components/FXMarginBuilder'));
+const FXMarginBuilder = lazy(() => import('./components/FXMarginBuilder') as Promise<{ default: React.ComponentType<any> }>);
 const UserManager = lazy(() => import('./components/UserManager'));
 const CampaignManager = lazy(() => import('./components/CampaignManager'));
 const PricingManager = lazy(() => import('./components/PricingManager'));
@@ -29,8 +33,12 @@ const BundledPricingManager = lazy(() => import('./components/BundledPricingMana
 const CompanyDetailsManager = lazy(() => import('./components/CompanyDetailsManager'));
 const CustomerManager = lazy(() => import('./components/CustomerManager'));
 const CustomerActivityManager = lazy(() => import('./components/CustomerActivityManager'));
-const CalculatorService = lazy(() => import('./components/CalculatorService'));
+const CalculatorService = lazy(() => import('./components/CalculatorService.tsx'));
 const CampaignsReport = lazy(() => import('./components/CampaignsReport'));
+const MGMNotificationManager = lazy(() => import('./components/MGMNotificationManager'));
+const PushTestAdmin = lazy(() => import('./components/PushTestAdmin'));
+const TokenListAdmin = lazy(() => import('./components/TokenListAdmin'));
+const ReferralCodeManager = lazy(() => import('./components/ReferralCodeManager'));
 
 // View type now imported from types.ts
 
@@ -38,6 +46,24 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isAuthenticated, setAuthenticated] = useState(false);
+
+  // Initialize Firebase notifications on app load
+  useEffect(() => {
+    initNotifications().catch((error) => {
+      console.error('Failed to initialize notifications:', error);
+    });
+    // If permission not yet granted, proactively request on app load to surface any errors
+    try {
+      if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
+        // Lazy import to avoid bundling cost upfront
+        import('./services/notificationService').then(({ requestNotificationPermission }) => {
+          requestNotificationPermission().catch((e) => console.warn('Notification permission request failed:', e));
+        });
+      }
+    } catch (e) {
+      console.warn('Notification permission bootstrap failed:', e);
+    }
+  }, []);
 
   const handleAuthSuccess = () => {
     setAuthenticated(true);
@@ -93,6 +119,14 @@ const App: React.FC = () => {
         return <CalculatorService setCurrentView={setCurrentView} />;
       case 'campaignsReport':
         return <CampaignsReport />;
+      case 'mgmNotifications':
+        return <MGMNotificationManager />;
+      case 'pushTestAdmin':
+        return <PushTestAdmin />;
+      case 'tokenListAdmin':
+        return <TokenListAdmin />;
+      case 'referralCodes':
+        return <ReferralCodeManager />;
       default:
         return <Dashboard />;
     }
@@ -101,21 +135,25 @@ const App: React.FC = () => {
   return (
     <AuthProvider>
       <ThemeProvider>
-        {!isAuthenticated ? (
-          <LandingPage onAuthSuccess={handleAuthSuccess} />
-        ) : (
-          <div className="flex h-screen bg-gray-100 font-sans">
-            <Sidebar currentView={currentView} setCurrentView={setCurrentView} isSidebarOpen={isSidebarOpen} setSidebarOpen={setSidebarOpen} />
-            <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
-              <Header toggleSidebar={() => setSidebarOpen(!isSidebarOpen)} />
-              <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4 sm:p-6 lg:p-8">
-                <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-gray-500">Loading...</div></div>}>
-                  {renderView()}
-                </Suspense>
-              </main>
+        <NotificationProvider>
+          {!isAuthenticated ? (
+            <LandingPage onAuthSuccess={handleAuthSuccess} />
+          ) : (
+            <div className="flex h-screen bg-gray-100 font-sans">
+              <Sidebar currentView={currentView} setCurrentView={setCurrentView} isSidebarOpen={isSidebarOpen} setSidebarOpen={setSidebarOpen} />
+              <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
+                <Header toggleSidebar={() => setSidebarOpen(!isSidebarOpen)} />
+                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4 sm:p-6 lg:p-8">
+                  <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-gray-500">Loading...</div></div>}>
+                    {renderView()}
+                  </Suspense>
+                </main>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+          <NotificationToast />
+          <TokenStatus />
+        </NotificationProvider>
       </ThemeProvider>
     </AuthProvider>
   );

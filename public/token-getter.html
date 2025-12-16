@@ -1,0 +1,224 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FCM Token Getter</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 2rem; background: #f9f9f9; }
+      .container { max-width: 720px; margin: 0 auto; }
+      h1 { color: #333; }
+      .box { border: 1px solid #ddd; border-radius: 8px; padding: 1.5rem; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+      .box + .box { margin-top: 1.5rem; }
+      p { color: #666; line-height: 1.5; margin: 0 0 1rem 0; }
+      .status-item { margin: 1rem 0; }
+      .status-label { font-weight: bold; color: #333; }
+      .status-value { font-family: ui-monospace, monospace; background: #f6f8fa; padding: 0.5rem; border-radius: 4px; word-break: break-all; }
+      .status-error { color: #d32f2f; }
+      .status-success { color: #388e3c; }
+      .status-pending { color: #f57c00; }
+      input[type="email"] { width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem; box-sizing: border-box; margin: 0.5rem 0; }
+      button { padding: 0.5rem 1rem; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; }
+      button:hover:not(:disabled) { background: #1976D2; }
+      button:disabled { background: #ccc; cursor: not-allowed; }
+      .mono { font-family: ui-monospace, monospace; }
+      .hint { background: #fffacd; border-left: 4px solid #ffd700; padding: 0.75rem; margin-top: 1rem; border-radius: 4px; font-size: 0.9rem; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🔔 Firebase Cloud Messaging — Token Getter</h1>
+      <p>This page registers for FCM push notifications and retrieves your device token. It will automatically save the token to the database.</p>
+      
+      <div class="box">
+        <div class="status-item">
+          <div class="status-label">Status:</div>
+          <div id="status" class="status-value status-pending">Initializing…</div>
+        </div>
+        <div class="status-item">
+          <div class="status-label">Permission:</div>
+          <div id="permission" class="status-value">default</div>
+        </div>
+        <div class="status-item">
+          <div class="status-label">Token:</div>
+          <div id="token" class="status-value">(none)</div>
+        </div>
+        <div class="status-item" id="errorContainer" style="display:none;">
+          <div class="status-label status-error">Error:</div>
+          <div id="error" class="status-value status-error"></div>
+          <div class="hint" style="margin-top: 0.5rem;">
+            <strong>If you see "403 PERMISSION_DENIED" or "referrer … are blocked":</strong>
+            <ol style="margin: 0.5rem 0; padding-left: 1.5rem;">
+              <li>Open <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a>.</li>
+              <li>Find your API key and edit it.</li>
+              <li>Under <em>Application restrictions</em>, select <em>HTTP referrers</em>.</li>
+              <li>Add these patterns:
+                <ul style="margin: 0.25rem 0; padding-left: 1.5rem;">
+                  <li>http://localhost:3002/*</li>
+                  <li>http://127.0.0.1:3002/*</li>
+                </ul>
+              </li>
+              <li>Save and hard refresh this page (Ctrl+Shift+R).</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
+      <div class="box">
+        <h3>Tag Your Token (Optional)</h3>
+        <p>Enter your email to help identify your device in the token list:</p>
+        <input id="email" type="email" placeholder="you@example.com" />
+        <button id="saveEmailBtn" disabled>Save Email to Token</button>
+        <div id="emailStatus" style="margin-top: 0.5rem; font-size: 0.9rem;"></div>
+      </div>
+
+      <div class="box hint">
+        <strong>Next steps:</strong>
+        <ol style="margin: 0.5rem 0; padding-left: 1.5rem;">
+          <li>Ensure permission shows "<strong>granted</strong>" above.</li>
+          <li>Copy the token (or it auto-saves to the database on success).</li>
+          <li>Go to <a href="/token-list">Token List</a> in the app to verify it appears.</li>
+          <li>Or use the <code>listFcmTokens.cjs</code> script to check the database.</li>
+        </ol>
+      </div>
+    </div>
+
+    <script type="module">
+      import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+      import { getMessaging, getToken } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js';
+      import { getDatabase, ref, set, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
+
+      const config = {
+        apiKey: 'AIzaSyDHYxqQD4ZoVlgTy2XUhsVpf7GOz3N4qAI',
+        authDomain: 'emobility-service.firebaseapp.com',
+        databaseURL: 'https://emobility-service-default-rtdb.firebaseio.com',
+        projectId: 'emobility-service',
+        storageBucket: 'emobility-service.firebasestorage.app',
+        messagingSenderId: '535363619209',
+        appId: '1:535363619209:web:25eb5330be538a45de3958',
+        measurementId: 'G-PXPDV2Z0Q2'
+      };
+
+      const VAPID_KEY = 'BM8Eh8HKp8zEW_DxMQXwUAjbttu9rXexIfaY0JkIOt2aTHCLeUAm1qtZiiatZkoon53rPCD6gUw_czxjjaXwoZA';
+
+      const statusEl = document.getElementById('status');
+      const permEl = document.getElementById('permission');
+      const tokenEl = document.getElementById('token');
+      const errEl = document.getElementById('error');
+      const errorContainer = document.getElementById('errorContainer');
+      const emailStatusEl = document.getElementById('emailStatus');
+
+      let currentToken = null;
+      let currentDb = null;
+
+      async function main() {
+        try {
+          statusEl.textContent = 'Initializing Firebase…';
+          const app = initializeApp(config);
+          const messaging = getMessaging(app);
+          currentDb = getDatabase(app);
+
+          statusEl.textContent = 'Registering service worker…';
+          if ('serviceWorker' in navigator) {
+            try {
+              const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+              console.log('[Token Getter] Service worker registered:', reg);
+            } catch (e) {
+              console.warn('[Token Getter] Service worker registration failed (non-fatal):', e);
+            }
+          }
+
+          statusEl.textContent = 'Requesting notification permission…';
+          const permission = await Notification.requestPermission();
+          permEl.textContent = permission;
+
+          if (permission !== 'granted') {
+            statusEl.textContent = 'Permission not granted';
+            statusEl.className = 'status-value status-error';
+            errEl.textContent = 'You denied notification permission. Please allow it in your browser settings to retrieve a token.';
+            errorContainer.style.display = 'block';
+            return;
+          }
+
+          statusEl.textContent = 'Requesting FCM token…';
+          console.log('[Token Getter] About to call getToken with vapidKey:', VAPID_KEY.substring(0, 10) + '...');
+          const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+          currentToken = token || null;
+
+          if (token) {
+            tokenEl.textContent = token;
+            statusEl.textContent = 'Success ✓';
+            statusEl.className = 'status-value status-success';
+            errorContainer.style.display = 'none';
+
+            // Save token to Realtime Database immediately
+            try {
+              console.log('[Token Getter] Saving token to database:', token.substring(0, 20) + '...');
+              const tokenRef = ref(currentDb, 'fcmTokens/' + token);
+              await set(tokenRef, { createdAt: serverTimestamp(), userEmail: null, updatedAt: serverTimestamp() });
+              console.log('[Token Getter] Token saved to database successfully.');
+
+              // Enable email save button
+              document.getElementById('saveEmailBtn').disabled = false;
+              document.getElementById('saveEmailBtn').onclick = saveEmailToToken;
+            } catch (saveErr) {
+              console.error('[Token Getter] Failed to save token to database:', saveErr);
+              errEl.textContent = 'Token retrieved but failed to save to database:\n' + (saveErr?.message || String(saveErr));
+              errorContainer.style.display = 'block';
+            }
+          } else {
+            statusEl.textContent = 'No token returned';
+            statusEl.className = 'status-value status-error';
+            errEl.textContent = 'getToken returned null. This usually means the service worker failed to initialize or the Installations API is blocked.';
+            errorContainer.style.display = 'block';
+          }
+        } catch (e) {
+          console.error('[Token Getter] Error:', e);
+          statusEl.textContent = 'Error';
+          statusEl.className = 'status-value status-error';
+          const msg = e?.message || String(e);
+          errEl.textContent = msg;
+          errorContainer.style.display = 'block';
+
+          // Provide more specific guidance for common errors
+          if (msg.includes('403') || msg.includes('PERMISSION_DENIED') || msg.includes('referrer')) {
+            console.error('[Token Getter] Likely Firebase API key referrer issue. See hint in the error box above.');
+          } else if (msg.includes('serviceWorker') || msg.includes('service worker')) {
+            console.error('[Token Getter] Service worker issue. Try hard refresh (Ctrl+Shift+R).');
+          }
+        }
+      }
+
+      async function saveEmailToToken() {
+        if (!currentToken || !currentDb) {
+          alert('Token not yet retrieved. Please wait for "Success" status above.');
+          return;
+        }
+        const emailInput = document.getElementById('email');
+        const email = (emailInput?.value || '').trim();
+        if (!email) {
+          alert('Please enter an email.');
+          return;
+        }
+        try {
+          const tokenRef = ref(currentDb, 'fcmTokens/' + currentToken);
+          await set(tokenRef, { createdAt: serverTimestamp(), userEmail: email, updatedAt: serverTimestamp() });
+          emailStatusEl.textContent = '✓ Email saved to token.';
+          emailStatusEl.style.color = '#388e3c';
+        } catch (e) {
+          console.error('[Token Getter] Failed to save email:', e);
+          emailStatusEl.textContent = '✗ Failed to save email. See console.';
+          emailStatusEl.style.color = '#d32f2f';
+        }
+      }
+
+      main().catch((e) => {
+        console.error('[Token Getter] Uncaught error:', e);
+        statusEl.textContent = 'Fatal error';
+        statusEl.className = 'status-value status-error';
+        errEl.textContent = 'Uncaught error:\n' + (e?.message || String(e));
+        errorContainer.style.display = 'block';
+      });
+    </script>
+  </body>
+</html>

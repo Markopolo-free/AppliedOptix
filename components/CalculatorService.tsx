@@ -2,8 +2,192 @@
 
 import React, { useState, useEffect } from 'react';
 import { getDatabase, ref as dbRef, onValue } from 'firebase/database';
-import { CustomerActivity, Service, PricingRule, Campaign, LoyaltyProgram, Bundle } from '../types';
-import { calculatePricing } from './CalculatorService';
+import { CustomerActivity, Service, PricingRule, Campaign, LoyaltyProgram, Bundle, FXDiscountOption, FXCampaign } from '../types';
+
+// Temporary stub to prevent crash if missing
+export async function calculatePricing(
+  activity: CustomerActivity,
+  services: Service[],
+  pricingRules: PricingRule[],
+  campaigns: Campaign[],
+  loyaltyPrograms: LoyaltyProgram[],
+  bundles: Bundle[],
+  fxDiscountOptions: FXDiscountOption[],
+  fxCampaigns: FXCampaign[]
+) {
+  let breakdown: string[] = [];
+  let ruleDetails: any = {};
+  if (!activity || !activity.serviceId) {
+    return {
+      defaultPrice: 0,
+      finalPrice: 0,
+      reason: 'No activity or service selected.',
+      breakdown,
+      ruleDetails
+    };
+  }
+  // 1. Find the service
+  const service = services.find(s => s.id === activity.serviceId);
+  if (!service) {
+    return {
+      defaultPrice: 0,
+      finalPrice: 0,
+      reason: 'Service not found.',
+      breakdown,
+      ruleDetails
+    };
+  }
+  ruleDetails.service = service;
+  // 2. Calculate base price
+  let usage = 0;
+  if (activity.pricingBasis === 'Time (hour)') {
+    usage = activity.timeUsed || 0;
+    breakdown.push(`Usage: ${usage} hours`);
+  } else {
+    usage = activity.distanceTravelled || 0;
+    breakdown.push(`Usage: ${usage} km`);
+  }
+  let defaultPrice = service.price * usage;
+  breakdown.push(`Base price: €${service.price} x ${usage} = €${defaultPrice.toFixed(2)}`);
+  // 3. Apply pricing rule (if any)
+  let pricingRule = pricingRules.find(r =>
+    (r.serviceIds?.includes(service.id) || r.serviceTypeEntries?.some(e => e.serviceTypeName === service.type)) &&
+    r.basis === activity.pricingBasis
+  );
+  if (pricingRule) {
+    ruleDetails.pricingRule = pricingRule;
+    defaultPrice = pricingRule.rate * usage;
+    breakdown.push(`Pricing rule applied: €${pricingRule.rate} x ${usage} = €${defaultPrice.toFixed(2)}`);
+  }
+  // 4. Apply campaign (if any)
+  let campaign = campaigns.find(c =>
+    c.serviceIds?.includes(service.id) &&
+    (!c.countryId || c.countryId === service.country) &&
+    (!c.cityId || c.cityId === service.location)
+  );
+  let campaignDiscount = 0;
+  if (campaign) {
+    ruleDetails.campaign = campaign;
+    if (campaign.discountType === 'Percentage') {
+      campaignDiscount = defaultPrice * (campaign.discountValue / 100);
+      breakdown.push(`Campaign discount: ${campaign.discountValue}% = -€${campaignDiscount.toFixed(2)}`);
+    } else {
+      campaignDiscount = campaign.discountValue;
+      breakdown.push(`Campaign discount: -€${campaignDiscount.toFixed(2)}`);
+    }
+  }
+  // 4b. Apply ALL matching FX Campaigns
+  let fxCampaignsMatched = fxCampaigns.filter(fx => {
+    // Match on country, city, currency, and product (serviceItem)
+    const countryMatch = !fx.countryId || fx.countryId === service.country;
+    const cityMatch = !fx.cityId || fx.cityId === service.location;
+    const currencyMatch = !fx.currency || fx.currency === service.currency;
+    const productMatch = !fx.serviceItem || fx.serviceItem === service.name;
+    // Date range check
+    const now = new Date();
+    const start = fx.startDate ? new Date(fx.startDate) : null;
+    const end = fx.endDate ? new Date(fx.endDate) : null;
+    const dateMatch = (!start || now >= start) && (!end || now <= end);
+    return countryMatch && cityMatch && currencyMatch && productMatch && dateMatch;
+  });
+  let fxCampaignDiscount = 0;
+  if (fxCampaignsMatched.length > 0) {
+    ruleDetails.fxCampaigns = fxCampaignsMatched;
+    fxCampaignsMatched.forEach(fxCampaign => {
+      // Parse discountAmount string (e.g., "0.5% cashback", "$1 for every $100 spent")
+      let pctMatch = fxCampaign.discountAmount.match(/([\d.]+)\s*%/);
+      let valMatch = fxCampaign.discountAmount.match(/([\d.]+)/);
+      if (pctMatch) {
+        const pct = parseFloat(pctMatch[1]);
+        const amt = defaultPrice * (pct / 100);
+        fxCampaignDiscount += amt;
+        breakdown.push(`FX Campaign: ${fxCampaign.name} - ${pct}% = -€${amt.toFixed(2)}`);
+      } else if (valMatch) {
+        const val = parseFloat(valMatch[1]);
+        fxCampaignDiscount += val;
+        breakdown.push(`FX Campaign: ${fxCampaign.name} - -€${val.toFixed(2)}`);
+      } else {
+        breakdown.push(`FX Campaign: ${fxCampaign.name} - Could not parse amount (${fxCampaign.discountAmount})`);
+      }
+    });
+  }
+  // 4c. Apply ALL matching FX Discount Groups
+  let fxDiscounts = fxDiscountOptions.filter(opt => {
+    // Match on product (service.id), currency, and date
+    const productMatch = opt.product === service.id;
+    const currencyMatch = opt.currency === service.currency;
+    const now = new Date();
+    const start = opt.startDate ? new Date(opt.startDate) : null;
+    const end = opt.endDate ? new Date(opt.endDate) : null;
+    const dateMatch = (!start || now >= start) && (!end || now <= end);
+    if (!productMatch) {
+      breakdown.push(`[DEBUG] FX Discount Group '${opt.name}' not matched: product '${opt.product}' !== service.id '${service.id}'`);
+    }
+    if (!currencyMatch) {
+      breakdown.push(`[DEBUG] FX Discount Group '${opt.name}' not matched: currency '${opt.currency}' !== service.currency '${service.currency}'`);
+    }
+    if (!dateMatch) {
+      breakdown.push(`[DEBUG] FX Discount Group '${opt.name}' not matched: date not in range (${opt.startDate} - ${opt.endDate})`);
+    }
+    if (productMatch && currencyMatch && dateMatch) {
+      breakdown.push(`[DEBUG] FX Discount Group '${opt.name}' matched.`);
+    }
+    return productMatch && currencyMatch && dateMatch;
+  });
+  let fxDiscountAmount = 0;
+  if (fxDiscounts.length > 0) {
+    ruleDetails.fxDiscounts = fxDiscounts;
+    fxDiscounts.forEach(fxDiscount => {
+      if (fxDiscount.discountAmountType === 'percentage') {
+        const amt = defaultPrice * (fxDiscount.discountAmount / 100);
+        fxDiscountAmount += amt;
+        breakdown.push(`FX Discount Group: ${fxDiscount.name} - ${fxDiscount.discountAmount}% = -€${amt.toFixed(2)}`);
+      } else if (fxDiscount.discountAmountType === 'value') {
+        fxDiscountAmount += fxDiscount.discountAmount;
+        breakdown.push(`FX Discount Group: ${fxDiscount.name} - -€${fxDiscount.discountAmount.toFixed(2)}`);
+      } else if (fxDiscount.discountAmountType === 'pips') {
+        breakdown.push(`FX Discount Group: ${fxDiscount.name} - ${fxDiscount.discountAmount} pips (not applied to price)`);
+      } else {
+        breakdown.push(`FX Discount Group: ${fxDiscount.name} - Unknown discount type (${fxDiscount.discountAmountType})`);
+      }
+    });
+  }
+  // 5. Apply bundle (if any)
+  let bundle = bundles.find(b => b.serviceIds?.includes(service.id));
+  let bundleDiscount = 0;
+  if (bundle) {
+    ruleDetails.bundle = bundle;
+    if (bundle.discountType === 'Percentage') {
+      bundleDiscount = defaultPrice * (bundle.discountValue / 100);
+      breakdown.push(`Bundle discount: ${bundle.discountValue}% = -€${bundleDiscount.toFixed(2)}`);
+    } else {
+      bundleDiscount = bundle.discountValue;
+      breakdown.push(`Bundle discount: -€${bundleDiscount.toFixed(2)}`);
+    }
+  }
+  // 6. Apply loyalty program (if any)
+  let loyalty = loyaltyPrograms.find(l => l.cityName === activity.city);
+  if (loyalty) {
+    ruleDetails.loyalty = loyalty;
+    breakdown.push(`Loyalty program: ${loyalty.name} (Points per Euro: ${loyalty.pointsPerEuro})`);
+  }
+  // 7. Final price
+  let finalPrice = defaultPrice - campaignDiscount - bundleDiscount - fxCampaignDiscount - fxDiscountAmount;
+  if (finalPrice < 0) finalPrice = 0;
+  let reason = 'Calculation complete.';
+  if (campaign) reason += ' Campaign applied.';
+  if (fxCampaignsMatched.length > 0) reason += ' FX Campaign applied.';
+  if (fxDiscounts && fxDiscounts.length > 0) reason += ' FX Discount Group applied.';
+  if (bundle) reason += ' Bundle applied.';
+  if (loyalty) reason += ' Loyalty program available.';
+  return {
+    defaultPrice,
+    finalPrice,
+    reason,
+    breakdown,
+    ruleDetails
+  };
+}
 
 import { View } from '../types';
 
@@ -19,6 +203,8 @@ const CalculatorService: React.FC<CalculatorServiceProps> = ({ setCurrentView })
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loyaltyPrograms, setLoyaltyPrograms] = useState<LoyaltyProgram[]>([]);
   const [bundles, setBundles] = useState<Bundle[]>([]);
+  const [fxDiscountOptions, setFxDiscountOptions] = useState<FXDiscountOption[]>([]);
+  const [fxCampaigns, setFxCampaigns] = useState<FXCampaign[]>([]);
   const [activities, setActivities] = useState<CustomerActivity[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [countries, setCountries] = useState<string[]>([]);
@@ -67,6 +253,28 @@ const CalculatorService: React.FC<CalculatorServiceProps> = ({ setCurrentView })
           const data = snapshot.val() || {};
           const servicesList = Object.keys(data).map(key => ({ id: key, ...data[key] }));
           setServices(servicesList);
+          resolve();
+        }, { onlyOnce: true });
+      });
+
+      // Fetch FX Discount Options
+      const fxDiscountOptionsRef = dbRef(db, 'fxDiscountOptions');
+      await new Promise<void>((resolve) => {
+        onValue(fxDiscountOptionsRef, (snapshot) => {
+          const data = snapshot.val() || {};
+          const list: FXDiscountOption[] = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+          setFxDiscountOptions(list);
+          resolve();
+        }, { onlyOnce: true });
+      });
+
+      // Fetch FX Campaigns
+      const fxCampaignsRef = dbRef(db, 'fxCampaigns');
+      await new Promise<void>((resolve) => {
+        onValue(fxCampaignsRef, (snapshot) => {
+          const data = snapshot.val() || {};
+          const list: FXCampaign[] = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+          setFxCampaigns(list);
           resolve();
         }, { onlyOnce: true });
       });
@@ -152,7 +360,9 @@ const CalculatorService: React.FC<CalculatorServiceProps> = ({ setCurrentView })
         pricingRules,
         campaigns,
         loyaltyPrograms,
-        bundles
+        bundles,
+        fxDiscountOptions,
+        fxCampaigns
       );
       setResult(report);
     } finally {
@@ -212,9 +422,11 @@ const CalculatorService: React.FC<CalculatorServiceProps> = ({ setCurrentView })
               <option value="">Select activity...</option>
               {activities.map(a => {
                 const customer = customers.find(c => c.id === a.customerId);
+                const svc = services.find(s => s.id === a.serviceId);
+                const typeLabel = svc?.type || a.serviceType || 'Unknown service type';
                 return (
                   <option key={a.id} value={a.id}>
-                    {customer ? customer.name : 'Unknown Customer'} - {a.serviceType} in {a.city} ({a.distanceTravelled} km)
+                    {customer ? customer.name : 'Unknown Customer'} - {typeLabel} in {a.city} ({a.distanceTravelled} km)
                   </option>
                 );
               })}
@@ -225,11 +437,12 @@ const CalculatorService: React.FC<CalculatorServiceProps> = ({ setCurrentView })
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Service</label>
                 <select name="serviceId" value={activity.serviceId} onChange={handleChange} className="w-full border px-3 py-2 rounded">
-                  {services
-                    .filter(s => s.id === activity.serviceId)
-                    .map(s => (
-                      <option key={s.id} value={s.id}>{s.name} ({s.location})</option>
-                    ))}
+                  <option value="">Select service...</option>
+                  {services.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.type ? `${s.type} — ${s.name}` : s.name} ({s.location})
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
