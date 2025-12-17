@@ -40,13 +40,31 @@ function requiredEnv(name: string) {
 
 function isValidEmail(e: string) { return /.+@.+\..+/.test(e); }
 
-function buildEmailHtml(opts: { appUrl: string; referralCode: string; fromEmail: string; memberEmail?: string | null; campaignName?: string | null; discountAmount?: number | null; discountType?: string | null; welcomeMessage?: string | null; }) {
+function buildEmailHtml(opts: { appUrl: string; referralCode: string; fromEmail: string; memberEmail?: string | null; campaignName?: string | null; discountAmount?: number | null; discountType?: string | null; welcomeMessage?: string | null; fxCampaign?: { name: string; description: string; currency: string; discountAmount: string; } | null; }) {
   const {
     appUrl, referralCode, fromEmail, memberEmail, campaignName,
-    discountAmount, discountType, welcomeMessage,
+    discountAmount, discountType, welcomeMessage, fxCampaign,
   } = opts;
   const link = `${appUrl.replace(/\/$/, '')}/register?ref=${encodeURIComponent(referralCode)}`;
   const discount = discountAmount != null ? `${discountAmount}${discountType === 'percentage' ? '%' : ''}` : '';
+  
+  // FX Campaign section HTML
+  const fxCampaignSection = fxCampaign ? `
+    <div style="background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:12px;padding:20px;margin:16px 0;color:#fff;">
+      <div style="display:flex;align-items:flex-start;gap:12px;">
+        <div style="font-size:32px;">💱</div>
+        <div style="flex:1;">
+          <h2 style="margin:0 0 4px 0;font-size:18px;font-weight:700;">${fxCampaign.name}</h2>
+          <p style="margin:0 0 8px 0;opacity:.95;font-size:14px;">${fxCampaign.description}</p>
+          <div style="background:rgba(255,255,255,0.2);border-radius:8px;padding:12px;margin:8px 0;">
+            <p style="margin:0;font-size:12px;opacity:.9;">Special Offer:</p>
+            <p style="margin:4px 0 0 0;font-size:20px;font-weight:700;">${fxCampaign.discountAmount}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  ` : '';
+  
   return `<!DOCTYPE html>
   <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Your Invitation</title></head>
@@ -59,12 +77,13 @@ function buildEmailHtml(opts: { appUrl: string; referralCode: string; fromEmail:
       <div style="background:#fff;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 12px 12px;padding:24px;">
         ${welcomeMessage ? `<p style="margin-top:0;color:#374151;">${welcomeMessage}</p>` : ''}
         ${discount ? `<p style="margin:8px 0;color:#374151;">Welcome offer: <strong>${discount}</strong></p>` : ''}
-        <p style="margin:8px 0;color:#374151;">Your referral code:</p>
-        <div style="font-family:monospace;font-size:24px;font-weight:700;background:#f3f4f6;border-radius:8px;padding:12px 16px;display:inline-block;">${referralCode}</div>
-        <div style="margin-top:16px;">
-          <a href="${link}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 16px;border-radius:8px;font-weight:600;">Register Now</a>
+        ${fxCampaignSection}
+        <p style="margin:16px 0 8px 0;color:#374151;font-weight:600;">Your referral code:</p>
+        <div style="font-family:monospace;font-size:24px;font-weight:700;background:linear-gradient(135deg,#f3f4f6,#e5e7eb);border-radius:8px;padding:12px 16px;display:inline-block;border:2px solid #2563eb;">${referralCode}</div>
+        <div style="margin-top:20px;">
+          <a href="${link}" style="display:inline-block;background:linear-gradient(90deg,#2563eb,#1d4ed8);color:#fff;text-decoration:none;padding:14px 28px;border-radius:8px;font-weight:600;box-shadow:0 4px 6px rgba(37,99,235,0.3);">Register Now</a>
         </div>
-        <p style="margin:16px 0 0 0;font-size:12px;color:#6b7280;">Sent from ${fromEmail}</p>
+        <p style="margin:20px 0 0 0;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#6b7280;">Sent from ${fromEmail}</p>
       </div>
     </div>
   </body></html>`;
@@ -98,6 +117,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const fromEmail = (from || defaultFrom) as string;
 
+    // Fetch FX Campaign data if linked
+    let fxCampaignData: { name: string; description: string; currency: string; discountAmount: string; } | null = null;
+    if (codeData.fxCampaignNumber) {
+      try {
+        const campaignsSnap = await db.ref('fxCampaigns').get();
+        if (campaignsSnap.exists()) {
+          const allCampaigns = campaignsSnap.val() || {};
+          const campaign = Object.values(allCampaigns).find((c: any) => c.campaignNumber === codeData.fxCampaignNumber);
+          if (campaign) {
+            const c = campaign as any;
+            fxCampaignData = {
+              name: c.name || 'FX Campaign',
+              description: c.description || '',
+              currency: c.currency || '',
+              discountAmount: c.discountAmount || '',
+            };
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching FX campaign:', err);
+        // Continue without campaign data
+      }
+    }
+
     // Compose email
     const html = buildEmailHtml({
       appUrl,
@@ -108,6 +151,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       discountAmount: codeData.discountAmount ?? null,
       discountType: codeData.discountType || null,
       welcomeMessage: codeData.welcomeMessage || null,
+      fxCampaign: fxCampaignData,
     });
     const text = `You're invited${codeData.campaignName ? `: ${codeData.campaignName}` : ''}.\nReferral code: ${referralCode}\nRegister: ${appUrl.replace(/\/$/, '')}/register?ref=${encodeURIComponent(referralCode)}`;
 
