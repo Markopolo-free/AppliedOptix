@@ -194,8 +194,9 @@ const ReferralCodeManager: React.FC = () => {
       return;
     }
 
-    if (!discountAmount || parseFloat(discountAmount) <= 0) {
-      alert('Please enter a valid discount amount');
+    // Discount amount is required only if no FX Campaign is selected
+    if (!selectedCampaignNumber && (!discountAmount || parseFloat(discountAmount) <= 0)) {
+      alert('Please enter a valid discount amount or link an FX Campaign');
       return;
     }
 
@@ -223,7 +224,7 @@ const ReferralCodeManager: React.FC = () => {
         code,
         memberEmail,
         campaignName,
-        discountAmount: parseFloat(discountAmount),
+        discountAmount: discountAmount ? parseFloat(discountAmount) : null,
         discountType,
         welcomeMessage,
         maxUses: maxUses ? parseInt(maxUses) : null,
@@ -359,7 +360,7 @@ const ReferralCodeManager: React.FC = () => {
 
           <div>
             <label style={{ display: 'block', marginBottom: '5px', fontWeight: 500 }}>
-              Discount Amount *
+              Discount Amount {selectedCampaignNumber ? '(Optional - FX Campaign linked)' : '*'}
             </label>
             <input
               type="number"
@@ -376,6 +377,11 @@ const ReferralCodeManager: React.FC = () => {
                 boxSizing: 'border-box'
               }}
             />
+            {selectedCampaignNumber && (
+              <p style={{ fontSize: '0.85em', color: '#666', marginTop: '4px' }}>
+                💡 FX Campaign discount will be used if no amount entered
+              </p>
+            )}
           </div>
 
           <div>
