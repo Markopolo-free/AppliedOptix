@@ -30,6 +30,10 @@ const ReferralCodeManager: React.FC = () => {
   const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage');
   const [welcomeMessage, setWelcomeMessage] = useState('');
   const [maxUses, setMaxUses] = useState('');
+  
+  // FX Campaigns state
+  const [fxCampaigns, setFxCampaigns] = useState<any[]>([]);
+  const [selectedCampaignNumber, setSelectedCampaignNumber] = useState('');
 
   useEffect(() => {
     try { Modal.setAppElement('#root'); } catch { try { Modal.setAppElement('body'); } catch {} }
@@ -53,6 +57,23 @@ const ReferralCodeManager: React.FC = () => {
       setLoading(false);
     });
 
+    // Fetch FX Campaigns
+    const campaignsRef = ref(db, 'fxCampaigns');
+    const unsubscribeCampaigns = onValue(campaignsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const campaignsList = Object.entries(data).map(([id, campaign]: [string, any]) => ({
+          id,
+          ...campaign,
+        }));
+        // Sort by campaign number
+        campaignsList.sort((a, b) => (a.campaignNumber || '').localeCompare(b.campaignNumber || ''));
+        setFxCampaigns(campaignsList);
+      } else {
+        setFxCampaigns([]);
+      }
+    });
+
     // Subscribe to recent invitations
     const invitesRef = ref(db, 'referralInvitations');
     const unInvites = onValue(invitesRef, (snap) => {
@@ -62,7 +83,7 @@ const ReferralCodeManager: React.FC = () => {
       setInvitations(list.slice(0, 50));
     });
 
-    return () => { unsubscribe(); unInvites(); };
+    return () => { unsubscribe(); unsubscribeCampaigns(); unInvites(); };
   }, []);
 
   const generateReferralCode = () => {
@@ -210,6 +231,7 @@ const ReferralCodeManager: React.FC = () => {
         createdAt: new Date().toISOString(),
         status: 'active',
         referrals: [],
+        fxCampaignNumber: selectedCampaignNumber || null, // Link to FX Campaign
       };
 
       const codeRef = ref(db, `referralCodes/${code}`);
@@ -244,6 +266,7 @@ const ReferralCodeManager: React.FC = () => {
       setDiscountAmount('');
       setWelcomeMessage('');
       setMaxUses('');
+      setSelectedCampaignNumber('');
     } catch (error) {
       console.error('Error generating referral code:', error);
       alert('Failed to generate referral code');
@@ -394,6 +417,35 @@ const ReferralCodeManager: React.FC = () => {
               }}
             />
           </div>
+
+          <div>
+            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 500 }}>
+              Link to FX Campaign (Optional)
+            </label>
+            <select
+              value={selectedCampaignNumber}
+              onChange={(e) => setSelectedCampaignNumber(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px',
+                borderRadius: '4px',
+                border: '1px solid #ccc',
+                boxSizing: 'border-box'
+              }}
+            >
+              <option value="">Select a campaign...</option>
+              {fxCampaigns.map((campaign) => (
+                <option key={campaign.id} value={campaign.campaignNumber}>
+                  {campaign.campaignNumber} - {campaign.name}
+                </option>
+              ))}
+            </select>
+            {selectedCampaignNumber && (
+              <p style={{ fontSize: '0.85em', color: '#666', marginTop: '4px' }}>
+                Selected: {fxCampaigns.find(c => c.campaignNumber === selectedCampaignNumber)?.description}
+              </p>
+            )}
+          </div>
         </div>
 
         <div style={{ marginBottom: '15px' }}>
@@ -453,6 +505,7 @@ const ReferralCodeManager: React.FC = () => {
                 <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Code</th>
                 <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Member</th>
                 <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Campaign</th>
+                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>FX Campaign</th>
                 <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Discount</th>
                 <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Usage</th>
                 <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Sends (deliv/total)</th>
@@ -469,6 +522,22 @@ const ReferralCodeManager: React.FC = () => {
                   </td>
                   <td style={{ padding: '12px' }}>{code.memberEmail}</td>
                   <td style={{ padding: '12px' }}>{code.campaignName}</td>
+                  <td style={{ padding: '12px' }}>
+                    {code.fxCampaignNumber ? (
+                      <span style={{
+                        padding: '4px 8px',
+                        backgroundColor: '#e3f2fd',
+                        borderRadius: '4px',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        color: '#1565c0'
+                      }}>
+                        {code.fxCampaignNumber}
+                      </span>
+                    ) : (
+                      <span style={{ color: '#999', fontSize: '13px' }}>—</span>
+                    )}
+                  </td>
                   <td style={{ padding: '12px' }}>
                     {code.discountAmount}{code.discountType === 'percentage' ? '%' : ' fixed'}
                   </td>
