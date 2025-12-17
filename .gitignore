@@ -35,3 +35,6 @@ scripts/update-*.cjs
 .env
 .env.*
 !.env.example
+
+# Generated config files (contains API keys)
+public/firebase-config.js

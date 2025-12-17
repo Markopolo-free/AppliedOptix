@@ -83,23 +83,23 @@
       </div>
     </div>
 
+    <!-- Load Firebase config from generated file (created at build time) -->
+    <script src="/firebase-config.js"></script>
+
     <script type="module">
       import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
       import { getMessaging, getToken } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js';
       import { getDatabase, ref, set, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
 
-      const config = {
-        apiKey: 'AIzaSyDHYxqQD4ZoVlgTy2XUhsVpf7GOz3N4qAI',
-        authDomain: 'emobility-service.firebaseapp.com',
-        databaseURL: 'https://emobility-service-default-rtdb.firebaseio.com',
-        projectId: 'emobility-service',
-        storageBucket: 'emobility-service.firebasestorage.app',
-        messagingSenderId: '535363619209',
-        appId: '1:535363619209:web:25eb5330be538a45de3958',
-        measurementId: 'G-PXPDV2Z0Q2'
-      };
+      // Use config from generated file (set via window.FIREBASE_CONFIG)
+      const config = window.FIREBASE_CONFIG;
+      const VAPID_KEY = window.FIREBASE_VAPID_KEY;
 
-      const VAPID_KEY = 'BM8Eh8HKp8zEW_DxMQXwUAjbttu9rXexIfaY0JkIOt2aTHCLeUAm1qtZiiatZkoon53rPCD6gUw_czxjjaXwoZA';
+      if (!config || !VAPID_KEY) {
+        document.getElementById('status').textContent = 'Configuration error: Firebase config not loaded';
+        document.getElementById('status').classList.add('status-error');
+        throw new Error('Firebase configuration missing - ensure firebase-config.js is generated');
+      }
 
       const statusEl = document.getElementById('status');
       const permEl = document.getElementById('permission');

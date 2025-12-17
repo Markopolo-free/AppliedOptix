@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from 'firebase/app';
-import { getMessaging, getToken, onMessage, Messaging } from 'firebase/messaging';
+import { getMessaging, getToken, onMessage, Messaging, isSupported } from 'firebase/messaging';
 import { ref, set, serverTimestamp } from 'firebase/database';
 import { firebaseConfig } from '../firebaseConfig';
 import { db } from './firebase';
@@ -8,6 +8,13 @@ let messaging: Messaging | null = null;
 
 export const initNotifications = async () => {
   try {
+    // Check if FCM is supported in this browser (fails on most mobile browsers)
+    const messagingSupported = await isSupported();
+    if (!messagingSupported) {
+      console.log('[FCM] Firebase Messaging is not supported in this browser (likely mobile)');
+      return false;
+    }
+
     // Initialize Firebase if not already done
     const app = getApps()[0] || initializeApp(firebaseConfig);
     messaging = getMessaging(app);
@@ -131,8 +138,13 @@ export const setupMessageListener = (callback: (message: any) => void) => {
   });
 };
 
-export const isNotificationSupported = (): boolean => {
-  return 'Notification' in window && 'serviceWorker' in navigator;
+export const isNotificationSupported = async (): Promise<boolean> => {
+  try {
+    const messagingSupported = await isSupported();
+    return 'Notification' in window && 'serviceWorker' in navigator && messagingSupported;
+  } catch {
+    return false;
+  }
 };
 
 export const getNotificationPermissionStatus = (): NotificationPermission => {

@@ -20,10 +20,19 @@ export const NotificationPermissionComponent: React.FC<NotificationPermissionCom
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<NotificationPermission>(getNotificationPermissionStatus());
   const [error, setError] = useState<string | null>(null);
+  const [supported, setSupported] = useState<boolean | null>(null);
+
+  // Check support on mount
+  useEffect(() => {
+    (async () => {
+      const isSupported = await isNotificationSupported();
+      setSupported(isSupported);
+    })();
+  }, []);
 
   // If permission is already granted, ensure the token exists and is saved with the user's email
   useEffect(() => {
-    if (status === 'granted') {
+    if (status === 'granted' && supported) {
       (async () => {
         try {
           // Ensure messaging is initialized before attempting to fetch token
@@ -40,13 +49,19 @@ export const NotificationPermissionComponent: React.FC<NotificationPermissionCom
         }
       })();
     }
-  }, [status, currentUser?.email]);
+  }, [status, currentUser?.email, supported]);
 
   const handleRequestPermission = async () => {
     setIsLoading(true);
     setError(null);
 
     try {
+      const isSupported = await isNotificationSupported();
+      if (!isSupported) {
+        setError('Notifications are not supported in this browser');
+        return;
+      }
+      
       const token = await requestNotificationPermission();
       setStatus(getNotificationPermissionStatus());
 
@@ -65,7 +80,11 @@ export const NotificationPermissionComponent: React.FC<NotificationPermissionCom
     }
   };
 
-  if (!isNotificationSupported()) {
+  if (supported === null) {
+    return null; // Still checking support
+  }
+
+  if (!supported) {
     return null; // Browser doesn't support notifications
   }
 
