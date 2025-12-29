@@ -41,7 +41,9 @@ const Dashboard: React.FC = () => {
         fxDiscountGroupsSnap,
         loyaltyProgramsSnap,
         bundlesSnap,
-        userDiscountGroupsSnap
+        userDiscountGroupsSnap,
+        companyDetailsSnap,
+        countriesSnap
       ] = await Promise.all([
         get(ref(db, 'users')),
         get(ref(db, 'services')),
@@ -52,7 +54,9 @@ const Dashboard: React.FC = () => {
         get(ref(db, 'fxDiscountOptions')),
         get(ref(db, 'loyaltyPrograms')),
         get(ref(db, 'bundles')),
-        get(ref(db, 'userDiscountGroups'))
+        get(ref(db, 'userDiscountGroups')),
+        get(ref(db, 'companies')),
+        get(ref(db, 'referenceCountries'))
       ]);
 
       // Count records
@@ -66,6 +70,8 @@ const Dashboard: React.FC = () => {
       const userDiscountGroupsCount = userDiscountGroupsSnap.exists() ? Object.keys(userDiscountGroupsSnap.val()).length : 0;
       const loyaltyProgramsCount = loyaltyProgramsSnap.exists() ? Object.keys(loyaltyProgramsSnap.val()).length : 0;
       const bundledPricingCount = bundlesSnap.exists() ? Object.keys(bundlesSnap.val()).length : 0;
+      const companyDetailsCount = companyDetailsSnap.exists() ? Object.keys(companyDetailsSnap.val()).length : 0;
+      const countriesCount = countriesSnap.exists() ? Object.keys(countriesSnap.val()).length : 0;
 
       console.log('Dashboard Counts:', {
         usersCount,
@@ -77,7 +83,9 @@ const Dashboard: React.FC = () => {
         fxDiscountGroupsCount,
         loyaltyProgramsCount,
         bundledPricingCount,
-        userDiscountGroupsCount
+        userDiscountGroupsCount,
+        companyDetailsCount,
+        countriesCount
       });
 
       const counts: EntityCount[] = [
@@ -91,6 +99,8 @@ const Dashboard: React.FC = () => {
         { label: 'Loyalty Programs', count: loyaltyProgramsCount, color: 'text-teal-600' },
         { label: 'Bundled Pricing', count: bundledPricingCount, color: 'text-cyan-600' },
         { label: 'User Discount Groups', count: userDiscountGroupsCount, color: 'text-amber-600' },
+        { label: 'Company Details', count: companyDetailsCount, color: 'text-violet-600' },
+        { label: 'Countries', count: countriesCount, color: 'text-emerald-600' },
       ];
 
       setEntityCounts(counts);
