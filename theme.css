@@ -108,3 +108,10 @@ button.bg-green-600:hover, button.bg-green-500:hover {
   background-color: var(--success-color) !important;
   filter: brightness(0.9);
 }
+
+/* Horizontal scroll helper for Safari/iOS/macOS */
+.scroll-x {
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch; /* smooth scrolling on Safari */
+  overscroll-behavior-x: contain;
+}

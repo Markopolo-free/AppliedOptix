@@ -290,8 +290,8 @@ const ReferenceDataManager: React.FC = () => {
               )}
             </div>
           </div>
-          <div className={category === 'loyaltyStamps' ? 'overflow-x-auto pb-2' : ''}>
-            <table className={category === 'loyaltyStamps' ? 'min-w-[1600px] divide-y divide-gray-200' : 'min-w-full divide-y divide-gray-200'}>
+          <div className={category === 'loyaltyStamps' ? 'scroll-x pb-2' : ''}>
+            <table className={category === 'loyaltyStamps' ? 'min-w-[1200px] divide-y divide-gray-200' : 'min-w-full divide-y divide-gray-200'}>
             <thead className="bg-gray-50">
               <tr>
                 {category === 'loyaltyStamps' && (
@@ -581,7 +581,7 @@ const ReferenceDataManager: React.FC = () => {
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Left Column: Image Upload */}
                     <div className="lg:col-span-1">
-                      <div className="sticky top-4 bg-white p-4 border border-gray-300 rounded-lg">
+                      <div className="lg:sticky top-4 bg-white p-4 border border-gray-300 rounded-lg">
                         <h4 className="text-sm font-semibold mb-3">Stamp Icon</h4>
                         <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 hover:bg-blue-50 transition">
                           <label className="cursor-pointer block">
