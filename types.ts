@@ -1,3 +1,13 @@
+// DOMAIN SYSTEM - Added 2026-01-12 for multi-portal support
+// ROLLBACK: Remove ProductDomain type and DOMAIN_VIEW_MAP to restore original behavior
+export type ProductDomain = 
+    | 'dashboard'     // Overview dashboard showing all domains
+    | 'admin'         // Common administration (shared across portals)
+    | 'fx'            // Foreign exchange services
+    | 'emobility'     // eMobility services and pricing
+    | 'fintech';      // Financial services portal (example new client)
+
+// View type remains unchanged for backward compatibility
 export type View =
     | 'dashboard'
     | 'users'
@@ -26,7 +36,36 @@ export type View =
     | 'mgmNotifications'
     | 'pushTestAdmin'
     | 'tokenListAdmin'
-    | 'referralCodes';
+    | 'referralCodes'
+    | 'domainMenuBuilder';  // Visual menu configuration tool
+
+// Domain to View mapping - controls which views appear in each domain's sidebar
+// SECURITY: This is UI-level filtering only. Database-level access control MUST be enforced separately.
+// NOTE: Configuration has been moved to DomainMenuConfig.ts for easier customization
+import { getDomainViewMap, getDomainMetadata } from './DomainMenuConfig';
+
+export const DOMAIN_VIEW_MAP: Record<ProductDomain, View[]> = getDomainViewMap();
+
+// Domain metadata for UI rendering
+// NOTE: Configuration has been moved to DomainMenuConfig.ts for easier customization
+export interface DomainMetadata {
+    id: ProductDomain;
+    label: string;
+    icon: string;
+    description: string;
+    color: string; // Tailwind color for theming
+}
+
+export const DOMAIN_METADATA: Record<ProductDomain, DomainMetadata> = getDomainMetadata();
+// SECURITY: Domain access control for data isolation between portals
+// Each user should only access data from their permitted domains
+export interface UserDomainAccess {
+    userId: string;
+    allowedDomains: ProductDomain[]; // Domains this user can access
+    defaultDomain?: ProductDomain;   // Domain to show on login
+    tenantId?: string;                // For multi-tenant data isolation
+}
+
 export interface Customer {
     id: string;
     name: string;
@@ -38,6 +77,7 @@ export interface Customer {
     createdAt: string;
     lastModifiedBy?: string;
     lastModifiedAt?: string;
+    tenantId?: string; // SECURITY: For isolating customer data by portal/domain
 }
 
 export interface CustomerActivity {
@@ -71,6 +111,10 @@ export interface User {
   lastModifiedBy?: string;
   lastModifiedAt?: string;
   company?: string;
+  // SECURITY: Domain access control - Added 2026-01-12
+  allowedDomains?: ProductDomain[]; // Which domains/portals this user can access
+  defaultDomain?: ProductDomain;    // Default domain on login
+  tenantId?: string;                 // For multi-tenant data isolation
 }
 
 export interface Service {
@@ -82,12 +126,14 @@ export interface Service {
     minChargeAmount?: number; // Optional minimum charge amount (default 0.00)
     currency: string;
     pricingBasis: PricingBasis;
+    period?: string; // Period for Fixed Fee pricing (Daily, Weekly, Monthly, Quarterly, Annual)
     status: ServiceStatus;
     country: string; // Country from reference data
     location: string; // City from reference data (filtered by country)
     effectiveDate: string; // ISO date string
     lastModifiedBy: string;
     lastModifiedAt: string;
+    tenantId: string; // MULTI-TENANT: Which client/tenant owns this service
 }
 
 export interface Zone {
@@ -98,6 +144,7 @@ export interface Zone {
     location: string; // City from reference data (filtered by country)
     lastModifiedBy: string;
     lastModifiedAt: string;
+    tenantId: string; // MULTI-TENANT: Which client/tenant owns this zone
 }
 
 export interface ServiceTypeEntry {
@@ -134,6 +181,7 @@ export interface PricingRule {
     checkerTimestamp?: string;
     lastModifiedBy: string;
     lastModifiedAt: string;
+    tenantId: string; // MULTI-TENANT: Which client/tenant owns this pricing rule
 }
 
 // Per-service qualifying criteria
@@ -182,6 +230,7 @@ export interface Campaign {
     checkerTimestamp?: string;
     lastModifiedBy: string;
     lastModifiedAt: string;
+    tenantId: string; // MULTI-TENANT: Which client/tenant owns this campaign
 }
 
 export interface LoyaltyProgram {
@@ -204,6 +253,7 @@ export interface LoyaltyProgram {
     checkerTimestamp?: string;
     lastModifiedBy: string;
     lastModifiedAt: string;
+    tenantId: string; // MULTI-TENANT: Which client/tenant owns this loyalty program
 }
 
 export interface Bundle {
@@ -217,6 +267,7 @@ export interface Bundle {
     endDate: string;
     lastModifiedBy: string;
     lastModifiedAt: string;
+    tenantId: string; // MULTI-TENANT: Which client/tenant owns this bundle
 }
 
 export interface AuditLogChange {
@@ -238,6 +289,7 @@ export interface AuditLog {
     changes?: AuditLogChange[]; // Detailed changes for update operations
     ipAddress?: string; // Optional IP address tracking
     metadata?: Record<string, any>; // Additional context
+    tenantId: string; // MULTI-TENANT: Which client/tenant this audit log belongs to
 }
 
 // FX Pricing Types
@@ -269,6 +321,7 @@ export interface FXPricing {
     checkerTimestamp?: string;
     lastModifiedBy: string;
     lastModifiedAt: string;
+    tenantId: string; // MULTI-TENANT: Which client/tenant owns this FX pricing
 }
 
 // User Discount Groups
@@ -285,6 +338,7 @@ export interface UserDiscountGroup {
     expiryDate?: string; // Optional expiry date
     lastModifiedBy: string;
     lastModifiedAt: string;
+    tenantId: string; // MULTI-TENANT: Which client/tenant owns this discount group
 }
 
 // FX Campaigns
@@ -307,6 +361,7 @@ export interface FXCampaign {
     rewardAvailableFrom: string; // When rewards become available
     lastModifiedBy: string;
     lastModifiedAt: string;
+    tenantId: string; // MULTI-TENANT: Which client/tenant owns this FX campaign
 }
 
 // FX Discount Groups
@@ -328,6 +383,7 @@ export interface FXDiscountOption {
     endDate: string; // Offer end date
     lastModifiedBy: string;
     lastModifiedAt: string;
+    tenantId: string; // MULTI-TENANT: Which client/tenant owns this FX discount option
 }
 
 

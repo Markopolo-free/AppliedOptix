@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { FXPricing, FXPricingTier } from '../types';
 import { ApprovalStatus } from '../enums';
 import { logAudit, calculateChanges } from '../services/auditService';
+import { queryFXPricingByTenant } from '../services/multiTenantService';
 
 interface ReferenceData {
   id: string;
@@ -37,29 +38,31 @@ const FXPricingManager: React.FC = () => {
     { minValue: 0, maxValue: 1000, marginPercentage: 2.5 }
   ]);
 
-  const { currentUser, isAdmin } = useAuth();
+  const { currentUser, isAdmin, effectiveTenantId } = useAuth();
 
   // Approve handler for FX pricing
   const database = getDatabase();
 
   // Load FX Pricings
   useEffect(() => {
-    const fxRef = ref(database, 'fxPricings');
-    const unsubscribe = onValue(fxRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const fxArray: FXPricing[] = Object.entries(data).map(([id, fx]: [string, any]) => ({
-          id,
-          ...fx
-        }));
+    const loadFXPricings = async () => {
+      try {
+        if (!currentUser?.tenantId) {
+          console.error('No tenantId available');
+          setFxPricings([]);
+          return;
+        }
+        const fxArray = await queryFXPricingByTenant(effectiveTenantId);
         fxArray.sort((a, b) => b.lastModifiedAt.localeCompare(a.lastModifiedAt));
         setFxPricings(fxArray);
-      } else {
+      } catch (error) {
+        console.error('Error loading FX pricings:', error);
         setFxPricings([]);
       }
-    });
-    return () => unsubscribe();
-  }, []);
+    };
+
+    loadFXPricings();
+  }, [currentUser?.tenantId, effectiveTenantId]);
 
   // Load Countries from reference data
   useEffect(() => {
@@ -201,6 +204,7 @@ const FXPricingManager: React.FC = () => {
       channel: formData.channel,
       loyaltyStatus: formData.loyaltyStatus,
       status: ApprovalStatus.Pending,
+      tenantId: currentUser?.tenantId || 'default-tenant',
       makerName: currentUser.name,
       makerEmail: currentUser.email,
       makerTimestamp: new Date().toISOString(),

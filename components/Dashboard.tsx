@@ -152,10 +152,7 @@ const Dashboard: React.FC = () => {
         </>
       )}
 
-      {/* Logo in left nav at bottom with blue border, now using logo.jpg */}
-      <div style={{ position: 'fixed', left: '24px', bottom: '24px', width: '220px', height: '100px', padding: '16px', background: 'white', border: '2px solid #2563eb', borderRadius: '20px', zIndex: 50, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-        <img src="/logo.jpg" alt="Adaptive Optix Logo" style={{ width: '160px', height: '80px', objectFit: 'contain', display: 'block' }} />
-      </div>
+      {/* Adaptive Optix logo removed from bottom left nav */}
     </div>
   );
 };

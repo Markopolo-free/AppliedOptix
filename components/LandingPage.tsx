@@ -54,14 +54,24 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
         if (validateCredentials(email, password)) {
           const user = await getUserByEmail(email);
           if (user) {
-            setCurrentUser({ id: user.id || user.email, email: user.email, name: user.name, role: user.role, profilePicture: user.profilePicture });
+            // MULTI-TENANT: Include tenant and domain information
+            setCurrentUser({ 
+              id: user.id || user.email, 
+              email: user.email, 
+              name: user.name, 
+              role: user.role, 
+              profilePicture: user.profilePicture,
+              allowedDomains: user.allowedDomains,
+              defaultDomain: user.defaultDomain,
+              tenantId: user.tenantId,
+            });
             await logAudit({
               userId: user.email,
               userName: user.name,
               userEmail: user.email,
               action: 'login',
               entityType: 'auth',
-              metadata: { timestamp: new Date().toISOString() }
+              metadata: { timestamp: new Date().toISOString(), tenantId: user.tenantId }
             });
           }
           setStep('success');
@@ -107,9 +117,14 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
     return (
       <div className="flex h-screen bg-gray-100 font-sans">
         {/* Left nav style */}
-        <div className="w-64 bg-gray-800 flex flex-col h-screen">
-          <div className="flex flex-col items-center w-full px-8 pt-8">
-            <span className="text-2xl font-bold text-white mb-4">Adaptive Optix</span>
+        <div className="w-64 bg-gray-800 flex flex-col h-screen overflow-hidden">
+          <div className="flex flex-col items-center w-full px-8 pt-8 flex-shrink-0">
+            {/* Adaptive Optix Logo */}
+            <img 
+              src="/adaptive-optix-logo.svg"
+              alt="Adaptive Optix"
+              className="h-24 mb-6 object-contain"
+            />
             <nav className="flex flex-col gap-2 w-full">
               {menuItems.map(item => (
                 <button
@@ -122,7 +137,6 @@ const LandingPage: React.FC<LandingPageProps> = ({ onAuthSuccess }) => {
               ))}
             </nav>
           </div>
-          {/* Logo box removed as requested */}
         </div>
         <div className="flex-1 flex flex-col items-center justify-center">
           <div className="bg-white rounded-xl shadow-md p-8 w-full max-w-md">

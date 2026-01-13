@@ -10,6 +10,7 @@ import Dashboard from './components/Dashboard';
 import { NotificationToast } from './components/NotificationToast';
 import { initNotifications } from './services/notificationService';
 import TokenStatus from './components/TokenStatus';
+import TopMenu from './components/TopMenu';
 
 
 // Lazy-load manager components for route-based code splitting
@@ -39,6 +40,7 @@ const MGMNotificationManager = lazy(() => import('./components/MGMNotificationMa
 const PushTestAdmin = lazy(() => import('./components/PushTestAdmin'));
 const TokenListAdmin = lazy(() => import('./components/TokenListAdmin'));
 const ReferralCodeManager = lazy(() => import('./components/ReferralCodeManager'));
+const DomainMenuBuilder = lazy(() => import('./components/DomainMenuBuilder'));
 
 // View type now imported from types.ts
 
@@ -127,6 +129,8 @@ const App: React.FC = () => {
         return <TokenListAdmin />;
       case 'referralCodes':
         return <ReferralCodeManager />;
+      case 'domainMenuBuilder':
+        return <DomainMenuBuilder />;
       default:
         return <Dashboard />;
     }
@@ -140,7 +144,12 @@ const App: React.FC = () => {
             <LandingPage onAuthSuccess={handleAuthSuccess} />
           ) : (
             <div className="flex h-screen bg-gray-100 font-sans">
-              <Sidebar currentView={currentView} setCurrentView={setCurrentView} isSidebarOpen={isSidebarOpen} setSidebarOpen={setSidebarOpen} />
+              <Sidebar 
+                currentView={currentView} 
+                setCurrentView={setCurrentView} 
+                isSidebarOpen={isSidebarOpen} 
+                setSidebarOpen={setSidebarOpen}
+              />
               <div className="flex-1 flex flex-col overflow-hidden lg:ml-64">
                 <Header toggleSidebar={() => setSidebarOpen(!isSidebarOpen)} />
                 <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4 sm:p-6 lg:p-8">

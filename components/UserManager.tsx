@@ -4,58 +4,83 @@ import { db } from '../services/firebase';
 import { User, UserRole } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { logAudit, calculateChanges } from '../services/auditService';
+import { queryUsersByTenant } from '../services/multiTenantService';
 
 const UserManager: React.FC = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, effectiveTenantId } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
   // State for the form, used for both adding and editing
-  const [formData, setFormData] = useState({ name: '', email: '', role: UserRole.Maker, profilePicture: '', company: '' });
+  const [formData, setFormData] = useState({ 
+    name: '', 
+    email: '', 
+    role: UserRole.Maker, 
+    profilePicture: '', 
+    company: '',
+    tenantId: '',
+    allowedDomains: ['admin', 'dashboard'] as string[],
+    defaultDomain: 'dashboard' as string
+  });
   // State to track which user is being edited, if any
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [companyNames, setCompanyNames] = useState<string[]>([]);
+  
+  const availableDomains = ['dashboard', 'admin', 'fx', 'emobility', 'fintech'];
+  
+  // Define all tenants
+  const allTenants = [
+    { id: 'emobility-demo', name: 'eMobility Demo' },
+    { id: 'fintech-demo', name: 'FinTech Demo' },
+    { id: 'corporate-banking', name: 'Corporate Banking' },
+    { id: 'retail-banking', name: 'Retail Banking' },
+    { id: 'insurance-demo', name: 'Insurance Demo' },
+    { id: 'default-tenant', name: 'Default Tenant (Legacy)' }
+  ];
+  
+  // Filter available tenants: only show default-tenant if we're currently in default-tenant context
+  const availableTenants = effectiveTenantId === 'default-tenant' 
+    ? allTenants
+    : allTenants.filter(t => t.id !== 'default-tenant');
 
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
     try {
-      const usersRef = ref(db, 'users');
-      const snapshot = await get(usersRef);
-
-      if (snapshot.exists()) {
-          const data = snapshot.val();
-          const usersList: User[] = Object.keys(data).map(key => {
-              const userData = data[key];
-              return {
-                  id: key,
-                  name: userData.name || '',
-                  email: userData.email || '',
-                  role: userData.role || UserRole.Maker,
-                  profilePicture: userData.profilePicture,
-                  company: userData.company || '',
-                  createdAt: new Date(userData.createdAt).toISOString(),
-                  lastModifiedAt: userData.lastModifiedAt ? new Date(userData.lastModifiedAt).toISOString() : undefined,
-                  lastModifiedBy: userData.lastModifiedBy,
-              }
-          });
-          // Sort by company name (alphabetically, empty company last), then by createdAt desc
-          usersList.sort((a, b) => {
-            if ((a.company || '').toLowerCase() < (b.company || '').toLowerCase()) return -1;
-            if ((a.company || '').toLowerCase() > (b.company || '').toLowerCase()) return 1;
-            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-          });
-          setUsers(usersList); 
-      } else {
-          setUsers([]);
-      }
+      // Query users filtered by effective tenant
+      const usersList = await queryUsersByTenant(effectiveTenantId);
+      
+      // Convert to User objects with proper formatting
+      const formattedUsers: User[] = usersList.map(userData => ({
+        id: userData.id,
+        name: userData.name || '',
+        email: userData.email || '',
+        role: userData.role || UserRole.Maker,
+        profilePicture: userData.profilePicture,
+        company: userData.company || '',
+        tenantId: userData.tenantId || 'default-tenant',
+        allowedDomains: userData.allowedDomains || ['admin', 'dashboard'],
+        defaultDomain: userData.defaultDomain || 'dashboard',
+        createdAt: userData.createdAt ? new Date(userData.createdAt).toISOString() : new Date().toISOString(),
+        lastModifiedAt: userData.lastModifiedAt ? new Date(userData.lastModifiedAt).toISOString() : undefined,
+        lastModifiedBy: userData.lastModifiedBy,
+      }));
+      
+      // Sort by company name (alphabetically, empty company last), then by createdAt desc
+      formattedUsers.sort((a, b) => {
+        if ((a.company || '').toLowerCase() < (b.company || '').toLowerCase()) return -1;
+        if ((a.company || '').toLowerCase() > (b.company || '').toLowerCase()) return 1;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+      
+      setUsers(formattedUsers);
     } catch (error) {
-        console.error("Error fetching users: ", error);
-        alert("Could not fetch user data. Please check the console for errors.");
+      console.error("Error fetching users: ", error);
+      alert("Could not fetch user data. Please check the console for errors.");
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
-  }, []);
+  }, [effectiveTenantId]);
 
   useEffect(() => {
     fetchUsers();
@@ -75,7 +100,40 @@ const UserManager: React.FC = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // Screen: if changing defaultDomain, ensure it's in allowedDomains
+    if (name === 'defaultDomain') {
+      setFormData(prev => {
+        if (prev.allowedDomains.includes(value)) {
+          return { ...prev, [name]: value };
+        }
+        // If not in allowed domains, don't allow the change
+        return prev;
+      });
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
+  };
+  
+  const handleDomainToggle = (domain: string) => {
+    setFormData(prev => {
+      const newAllowedDomains = prev.allowedDomains.includes(domain)
+        ? prev.allowedDomains.filter(d => d !== domain)
+        : [...prev.allowedDomains, domain];
+      
+      // Screen: if defaultDomain is no longer in allowedDomains, auto-correct it
+      let newDefaultDomain = prev.defaultDomain;
+      if (newAllowedDomains.length > 0 && !newAllowedDomains.includes(prev.defaultDomain)) {
+        // Pick the first allowed domain as the new default
+        newDefaultDomain = newAllowedDomains[0];
+      }
+      
+      return { 
+        ...prev, 
+        allowedDomains: newAllowedDomains,
+        defaultDomain: newDefaultDomain
+      };
+    });
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -109,22 +167,59 @@ const UserManager: React.FC = () => {
   
   const handleOpenModalForAdd = () => {
     setEditingUser(null);
-    setFormData({ name: '', email: '', role: UserRole.Maker, profilePicture: '', company: '' });
-    setIsModalOpen(true);
+      setFormData({ 
+        name: '', 
+        email: '', 
+        role: UserRole.Maker, 
+        profilePicture: '', 
+        company: '',
+        tenantId: effectiveTenantId,
+        allowedDomains: ['admin', 'dashboard'],
+        defaultDomain: 'dashboard'
+      });
+      setIsModalOpen(true);
   };
 
   const handleOpenModalForEdit = (user: User) => {
-    setEditingUser(user);
-    setFormData({ name: user.name, email: user.email, role: user.role, profilePicture: user.profilePicture || '', company: user.company || '' });
-    setIsModalOpen(true);
+      setEditingUser(user);
+      setFormData({ 
+        name: user.name, 
+        email: user.email, 
+        role: user.role, 
+        profilePicture: user.profilePicture || '', 
+        company: user.company || '',
+        tenantId: user.tenantId || 'default-tenant',
+        allowedDomains: user.allowedDomains || ['admin', 'dashboard'],
+        defaultDomain: user.defaultDomain || 'dashboard'
+      });
+      setIsModalOpen(true);
   };
 
   const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validation screening
     if (!formData.name || !formData.email) {
-        alert("Please fill in all fields.");
+        alert("Please fill in all required fields.");
         return;
     }
+    
+    if (!formData.tenantId) {
+        alert("Please select a tenant.");
+        return;
+    }
+    
+    if (formData.allowedDomains.length === 0) {
+        alert("Please select at least one allowed domain.");
+        return;
+    }
+    
+    // Screen: defaultDomain must be in allowedDomains
+    if (!formData.allowedDomains.includes(formData.defaultDomain)) {
+        alert("Default domain must be one of the allowed domains.");
+        return;
+    }
+    
     try {
         if (editingUser) {
             // Update existing user
@@ -233,16 +328,17 @@ const UserManager: React.FC = () => {
                 <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Name</th>
                 <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Role</th>
                 <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Company</th>
+                <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Tenant ID</th>
+                <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Allowed Domains</th>
                 <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Created At</th>
-                <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Last Modified</th>
                 <th scope="col" className="px-6 py-4 text-right text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Actions</th>
                 </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
                                 {isLoading ? (
-                                        <tr><td colSpan={6} className="text-center py-10 text-gray-500">Loading users from Realtime Database...</td></tr>
+                                        <tr><td colSpan={7} className="text-center py-10 text-gray-500">Loading users from Realtime Database...</td></tr>
                                 ) : users.length === 0 ? (
-                                        <tr><td colSpan={6} className="text-center py-10 text-gray-500">No users found in database.</td></tr>
+                                        <tr><td colSpan={7} className="text-center py-10 text-gray-500">No users found in database.</td></tr>
                                 ) : (
                                         (() => {
                                             let lastCompany = null;
@@ -252,7 +348,7 @@ const UserManager: React.FC = () => {
                                                     <React.Fragment key={user.id}>
                                                         {showDivider && (
                                                             <tr>
-                                                                <td colSpan={6}>
+                                                                <td colSpan={7}>
                                                                     <div className="border-t-2 border-blue-400 my-1"></div>
                                                                 </td>
                                                             </tr>
@@ -280,11 +376,27 @@ const UserManager: React.FC = () => {
                                                                 </span>
                                                             </td>
                                                             <td className="px-6 py-4 whitespace-nowrap text-gray-900">{user.company || <span className="text-gray-400">N/A</span>}</td>
-                                                            <td className="px-6 py-4 whitespace-nowrap text-gray-500">{user.createdAt ? new Date(user.createdAt).toLocaleString() : 'N/A'}</td>
-                                                            <td className="px-6 py-4 whitespace-nowrap text-gray-500">
-                                                                {user.lastModifiedAt ? new Date(user.lastModifiedAt).toLocaleString() : 'N/A'}
-                                                                {user.lastModifiedBy && <div className="text-xs text-gray-400">by {user.lastModifiedBy}</div>}
+                                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                                {user.tenantId && user.tenantId !== 'default-tenant' ? (
+                                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                                                        {user.tenantId}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                                                                        {user.tenantId || 'default-tenant'} (Legacy)
+                                                                    </span>
+                                                                )}
                                                             </td>
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex flex-wrap gap-1">
+                                                                    {(user.allowedDomains || ['admin', 'dashboard']).map(domain => (
+                                                                        <span key={domain} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                                                            {domain}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap text-gray-500">{user.createdAt ? new Date(user.createdAt).toLocaleString() : 'N/A'}</td>
                                                             <td className="px-6 py-4 whitespace-nowrap text-right font-medium">
                                                                 <button
                                                                     className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 mr-2"
@@ -343,6 +455,75 @@ const UserManager: React.FC = () => {
                           {companyNames.map(name => <option key={name} value={name}>{name}</option>)}
                         </select>
                     </div>
+                    
+                    {/* MULTI-TENANT FIELDS */}
+                    <div className="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                        <h3 className="text-sm font-semibold text-purple-900 mb-3">Multi-Tenant Configuration</h3>
+                        
+                        <div className="mb-3">
+                            <label htmlFor="tenantId" className="block text-sm font-medium text-gray-700 mb-1">
+                                Tenant ID <span className="text-red-500">*</span>
+                            </label>
+                            <select
+                                id="tenantId" 
+                                name="tenantId" 
+                                value={formData.tenantId} 
+                                onChange={handleInputChange}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                                required
+                            >
+                                <option value="">Select Tenant</option>
+                                {availableTenants.map(tenant => (
+                                    <option key={tenant.id} value={tenant.id}>{tenant.name}</option>
+                                ))}
+                            </select>
+                            <p className="text-xs text-gray-500 mt-1">Unique identifier for data isolation</p>
+                        </div>
+                        
+                        <div className="mb-3">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Allowed Domains <span className="text-red-500">*</span>
+                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                                {availableDomains.map(domain => (
+                                    <label key={domain} className="flex items-center space-x-2 p-2 border rounded hover:bg-gray-50 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={formData.allowedDomains.includes(domain)}
+                                            onChange={() => handleDomainToggle(domain)}
+                                            className="rounded text-purple-600 focus:ring-purple-500"
+                                        />
+                                        <span className="text-sm capitalize">{domain}</span>
+                                    </label>
+                                ))}
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">Which portals can this user access?</p>
+                        </div>
+                        
+                        <div className="mb-0">
+                            <label htmlFor="defaultDomain" className="block text-sm font-medium text-gray-700 mb-1">
+                                Default Domain <span className="text-red-500">*</span>
+                            </label>
+                            <select 
+                                id="defaultDomain" 
+                                name="defaultDomain" 
+                                value={formData.defaultDomain} 
+                                onChange={handleInputChange}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                                required
+                            >
+                                {formData.allowedDomains.length > 0 ? (
+                                    formData.allowedDomains.map(domain => (
+                                        <option key={domain} value={domain}>{domain}</option>
+                                    ))
+                                ) : (
+                                    <option value="dashboard">dashboard</option>
+                                )}
+                            </select>
+                            <p className="text-xs text-gray-500 mt-1">Starting portal on login</p>
+                        </div>
+                    </div>
+                    
                     <div className="mb-6">
                         <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">User Role</label>
                         <select id="role" name="role" value={formData.role} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500">

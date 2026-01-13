@@ -36,6 +36,10 @@ export async function getUserByEmail(email: string): Promise<User | null> {
     createdAt: data[userKey].createdAt,
     lastModifiedAt: data[userKey].lastModifiedAt,
     lastModifiedBy: data[userKey].lastModifiedBy,
+    // MULTI-TENANT: Include domain and tenant information from user record
+    allowedDomains: data[userKey].allowedDomains || ['admin', 'dashboard'],
+    defaultDomain: data[userKey].defaultDomain || 'dashboard',
+    tenantId: data[userKey].tenantId || 'default-tenant',
   };
 }
 
@@ -54,5 +58,9 @@ export async function getAllUsers(): Promise<User[]> {
     createdAt: data[key].createdAt,
     lastModifiedAt: data[key].lastModifiedAt,
     lastModifiedBy: data[key].lastModifiedBy,
+    // MULTI-TENANT: Include domain and tenant information
+    allowedDomains: data[key].allowedDomains || ['admin', 'dashboard'],
+    defaultDomain: data[key].defaultDomain || 'dashboard',
+    tenantId: data[key].tenantId || 'default-tenant',
   }));
 }

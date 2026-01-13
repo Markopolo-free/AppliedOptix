@@ -4,6 +4,7 @@ import { db } from '../services/firebase';
 import { Zone } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { logAudit, calculateChanges } from '../services/auditService';
+import { queryZonesByTenant } from '../services/multiTenantService';
 
 const initialNewZoneState = {
     name: '',

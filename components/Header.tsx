@@ -8,8 +8,22 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, tenantOverride, setTenantOverride, effectiveTenantId, isAdmin } = useAuth();
   const avatarSrc = currentUser?.profilePicture || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(currentUser?.name || 'User') + '&background=0D8ABC&color=fff&size=100';
+
+  const availableTenants = [
+    { id: 'emobility-demo', name: 'eMobility Demo' },
+    { id: 'fintech-demo', name: 'FinTech Demo' },
+    { id: 'corporate-banking', name: 'Corporate Banking' },
+    { id: 'retail-banking', name: 'Retail Banking' },
+    { id: 'insurance-demo', name: 'Insurance Demo' },
+    { id: 'default-tenant', name: 'Default Tenant' }
+  ];
+
+  const handleTenantSwitch = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedTenant = e.target.value;
+    setTenantOverride(selectedTenant === currentUser?.tenantId ? null : selectedTenant);
+  };
 
   // Location
   const [location, setLocation] = useState<string>('');
@@ -75,6 +89,29 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
           <div className="ml-2 hidden sm:block">
             <p className="text-sm font-medium text-gray-700">{currentUser?.name || 'User'}</p>
             <p className="text-xs text-gray-500">{currentUser?.role || ''}</p>
+            {isAdmin ? (
+              <div className="flex items-center gap-2 mt-1">
+                <label className="text-xs text-purple-600 font-semibold">Tenant:</label>
+                <select
+                  value={effectiveTenantId}
+                  onChange={handleTenantSwitch}
+                  className="text-xs px-2 py-0.5 border border-purple-300 rounded bg-purple-50 text-purple-800 font-semibold focus:outline-none focus:ring-1 focus:ring-purple-500"
+                >
+                  {availableTenants.map(tenant => (
+                    <option key={tenant.id} value={tenant.id}>
+                      {tenant.name} {tenant.id === currentUser?.tenantId ? '(My Tenant)' : ''}
+                    </option>
+                  ))}
+                </select>
+                {tenantOverride && (
+                  <span className="text-xs text-orange-600 font-semibold">(Demo Mode)</span>
+                )}
+              </div>
+            ) : (
+              currentUser?.tenantId && (
+                <p className="text-xs text-purple-600 font-semibold">Tenant: {currentUser.tenantId}</p>
+              )
+            )}
             <p className="text-xs text-gray-500">Location: {location || 'Unknown'}</p>
             {weather && <p className="text-xs text-blue-500">Weather: {weather}</p>}
           </div>

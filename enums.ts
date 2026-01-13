@@ -13,7 +13,18 @@ export enum ServiceStatus {
 
 export enum PricingBasis {
     Distance = 'Distance (km)',
-    Time = 'Time (hour)'
+    Time = 'Time (hour)',
+    FixedFee = 'Fixed Fee'
+}
+
+export enum Period {
+    Daily = 'Daily',
+    Weekly = 'Weekly',
+    Monthly = 'Monthly',
+    Quarterly = 'Quarterly',
+    Annual = 'Annual',
+    OneOff = 'one-off',
+    Waived = 'Waived'
 }
 
 export enum UserGroup {

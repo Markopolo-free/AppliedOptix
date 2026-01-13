@@ -6,6 +6,7 @@ import { db } from '../services/firebase';
 import { FXCampaign } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { logAudit, calculateChanges } from '../services/auditService';
+import { queryFXCampaignsByTenant } from '../services/multiTenantService';
 
 // Helper to get today's date in YYYY-MM-DD format
 const getTodayString = () => {
@@ -63,7 +64,7 @@ function FXCampaignManager() {
       };
       fetchDiscountAmountTypes();
     }, []);
-  const { currentUser } = useAuth();
+  const { currentUser, effectiveTenantId } = useAuth();
   const [discountAmountTypes, setDiscountAmountTypes] = useState<string[]>([]);
   const [campaigns, setCampaigns] = useState<FXCampaign[]>([]);
   const [currencies, setCurrencies] = useState<Array<{ id: string; code: string; name: string }>>([]);
@@ -186,42 +187,37 @@ function FXCampaignManager() {
   const fetchCampaigns = useCallback(async () => {
     setIsLoading(true);
     try {
-      const campaignsRef = ref(db, 'fxCampaigns');
-      const snapshot = await get(campaignsRef);
-      if (snapshot.exists()) {
-        const data = snapshot.val();
-        const list: FXCampaign[] = Object.keys(data).map((key) => ({
-          id: key,
-          ...data[key],
-          lastModifiedAt: new Date(data[key].lastModifiedAt).toISOString(),
-        }));
-        
-        // Sort by campaign start date (most recent first)
-        const isExpired = (c: FXCampaign) => {
-          if (!c.endDate) return false;
-          return new Date(c.endDate).getTime() < new Date().getTime();
-        };
-        list.sort((a, b) => {
-          const aExpired = isExpired(a);
-          const bExpired = isExpired(b);
-          // First sort by expiry status: active first, expired last
-          if (aExpired !== bExpired) return aExpired ? 1 : -1;
-          // Then sort by start date (most recent first)
-          const aStartDate = a.startDate ? new Date(a.startDate).getTime() : 0;
-          const bStartDate = b.startDate ? new Date(b.startDate).getTime() : 0;
-          return bStartDate - aStartDate;
-        });
-        setCampaigns(list);
-      } else {
+      if (!currentUser?.tenantId) {
+        console.error('No tenantId available');
         setCampaigns([]);
+        setIsLoading(false);
+        return;
       }
+      const list = await queryFXCampaignsByTenant(effectiveTenantId);
+      
+      // Sort by campaign start date (most recent first)
+      const isExpired = (c: FXCampaign) => {
+        if (!c.endDate) return false;
+        return new Date(c.endDate).getTime() < new Date().getTime();
+      };
+      list.sort((a, b) => {
+        const aExpired = isExpired(a);
+        const bExpired = isExpired(b);
+        // First sort by expiry status: active first, expired last
+        if (aExpired !== bExpired) return aExpired ? 1 : -1;
+        // Then sort by start date (most recent first)
+        const aStartDate = a.startDate ? new Date(a.startDate).getTime() : 0;
+        const bStartDate = b.startDate ? new Date(b.startDate).getTime() : 0;
+        return bStartDate - aStartDate;
+      });
+      setCampaigns(list);
     } catch (error) {
       console.error('Error fetching FX campaigns:', error);
       alert('Could not fetch FX campaigns. See console for details.');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [currentUser?.tenantId, effectiveTenantId]);
 
   useEffect(() => {
     fetchCampaigns();
@@ -330,6 +326,7 @@ function FXCampaignManager() {
       qualifyStartDate: newCampaign.qualifyStartDate,
       qualifyEndDate: newCampaign.qualifyEndDate,
       rewardAvailableFrom: newCampaign.rewardAvailableFrom,
+      tenantId: currentUser?.tenantId || 'default-tenant',
       lastModifiedBy: currentUser?.email || 'system',
       lastModifiedAt: serverTimestamp(),
     };

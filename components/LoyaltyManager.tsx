@@ -4,6 +4,7 @@ import { db } from '../services/firebase';
 import { LoyaltyProgram } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { logAudit, calculateChanges } from '../services/auditService';
+import { queryLoyaltyByTenant } from '../services/multiTenantService';
 
 const initialNewProgramState = {
   name: '',
@@ -19,7 +20,7 @@ const initialNewProgramState = {
 };
 
 const LoyaltyManager: React.FC = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, effectiveTenantId } = useAuth();
   const [programs, setPrograms] = useState<LoyaltyProgram[]>([]);
   const [isProgramModalOpen, setIsProgramModalOpen] = useState(false);
   const [newProgram, setNewProgram] = useState(initialNewProgramState);
@@ -78,46 +79,18 @@ const LoyaltyManager: React.FC = () => {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const programsRef = ref(db, 'loyaltyPrograms');
-      const snapshot = await get(programsRef);
-      if (snapshot.exists()) {
-        const data = snapshot.val();
-        setPrograms(
-          Object.entries(data).map(([id, value]) => {
-            const v = value as any;
-            return {
-              id,
-              name: v.name || '',
-              description: v.description || '',
-              cityName: v.cityName || '',
-              pointsPerEuro: v.pointsPerEuro || 0,
-              maxPointsPerUser: v.maxPointsPerUser || 0,
-              totalPointsAvailable: v.totalPointsAvailable || 0,
-              pointsConsumed: v.pointsConsumed || 0,
-              startDate: v.startDate || '',
-              endDate: v.endDate || '',
-              triggerEvent: v.triggerEvent || '',
-              status: v.status || '',
-              makerName: v.makerName || '',
-              makerEmail: v.makerEmail || '',
-              makerTimestamp: v.makerTimestamp || '',
-              checkerEmail: v.checkerEmail || '',
-              checkerTimestamp: v.checkerTimestamp || '',
-              lastModifiedBy: v.lastModifiedBy || '',
-              lastModifiedAt: v.lastModifiedAt || '',
-            };
-          })
-        );
-      } else {
-        setPrograms([]);
-      }
+      console.log('fetchData called with effectiveTenantId:', effectiveTenantId);
+      const programs = await queryLoyaltyByTenant(effectiveTenantId);
+      console.log('queryLoyaltyByTenant returned:', programs);
+      setPrograms(programs);
     } catch (error) {
+      console.error('Error fetching loyalty programs:', error);
       setPrograms([]);
     } finally {
       setIsLoading(false);
     }
   };
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [effectiveTenantId]);
 
   // Handlers
   const handleOpenProgramModalForAdd = () => {
@@ -155,6 +128,8 @@ const LoyaltyManager: React.FC = () => {
       triggerEvent: newProgram.triggerEvent,
       startDate: newProgram.startDate,
       endDate: newProgram.endDate,
+      // Use effective tenant so admin overrides save correctly
+      tenantId: effectiveTenantId,
       lastModifiedBy: currentUser?.email || 'admin',
       lastModifiedAt: new Date().toISOString(),
     };

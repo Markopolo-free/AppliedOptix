@@ -62,8 +62,7 @@ const ReferenceDataManager: React.FC = () => {
 
   useEffect(() => {
     const citiesRef = ref(database, 'referenceCities');
-    const unsubscribe = onValue(citiesRef, (snapshot) => {
-      const data = snapshot.val();
+i will ask       const data = snapshot.val();
       if (data) {
         const citiesArray: City[] = Object.entries(data).map(([id, city]: [string, any]) => ({
           id,

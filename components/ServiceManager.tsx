@@ -2,8 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ref, get, push, set, serverTimestamp, update, remove, query, orderByChild, equalTo, onValue } from 'firebase/database';
 import { db } from '../services/firebase';
 import { Service, ServiceStatus } from '../types';
+import { UserRole } from '../enums';
+import { TENANT_FEATURE_MAP } from '../TenantFeatureConfig';
 import { useAuth } from '../contexts/AuthContext';
 import { logAudit, calculateChanges } from '../services/auditService';
+import { queryServicesByTenant } from '../services/multiTenantService';
 
 const initialNewServiceState = {
     name: '',
@@ -13,6 +16,7 @@ const initialNewServiceState = {
     minChargeAmount: '0.00',
     currency: 'EUR',
     pricingBasis: 'Distance (km)',
+    period: '',
     status: ServiceStatus.Available,
     country: '',
     location: '',
@@ -20,7 +24,7 @@ const initialNewServiceState = {
 };
 
 const ServiceManager: React.FC = () => {
-    const { currentUser } = useAuth();
+  const { currentUser, effectiveTenantId } = useAuth();
     const [services, setServices] = useState<Service[]>([]);
     const [serviceTypes, setServiceTypes] = useState<string[]>([]);
     const [countries, setCountries] = useState<string[]>([]);
@@ -31,6 +35,7 @@ const ServiceManager: React.FC = () => {
     const [isAddTypeModalOpen, setIsAddTypeModalOpen] = useState(false);
     const [newTypeName, setNewTypeName] = useState("");
     const [formData, setFormData] = useState(initialNewServiceState);
+    const [selectedTenantId, setSelectedTenantId] = useState<string>('');
     const [editingService, setEditingService] = useState<Service | null>(null);
 
     const fetchAndSeedServiceTypes = useCallback(async () => {
@@ -85,21 +90,15 @@ const ServiceManager: React.FC = () => {
     }, []);
     
     const fetchServices = useCallback(async () => {
-        const servicesRef = ref(db, 'services');
-        const snapshot = await get(servicesRef);
-        if (snapshot.exists()) {
-            const data = snapshot.val();
-            const list: Service[] = Object.keys(data).map(key => ({
-                id: key,
-                ...data[key],
-                lastModifiedAt: new Date(data[key].lastModifiedAt).toISOString(),
-            }));
+        try {
+            const list = await queryServicesByTenant(effectiveTenantId);
             list.sort((a, b) => new Date(b.lastModifiedAt).getTime() - new Date(a.lastModifiedAt).getTime());
             setServices(list);
-        } else {
+        } catch (error) {
+            console.error('Error fetching services:', error);
             setServices([]);
         }
-    }, []);
+    }, [effectiveTenantId]);
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
@@ -151,6 +150,7 @@ const ServiceManager: React.FC = () => {
         setEditingService(null);
         setFormData(initialNewServiceState);
         setFilteredCities([]);
+        setSelectedTenantId(effectiveTenantId);
         setIsModalOpen(true);
     };
 
@@ -164,12 +164,14 @@ const ServiceManager: React.FC = () => {
             minChargeAmount: service.minChargeAmount !== undefined ? String(service.minChargeAmount) : '0.00',
             currency: service.currency,
             pricingBasis: service.pricingBasis || 'Distance (km)',
+            period: (service as any).period || '',
             status: service.status,
             country: service.country || '',
             location: service.location,
             effectiveDate: service.effectiveDate || new Date().toISOString().split('T')[0],
         };
         setFormData(editData);
+        setSelectedTenantId((service as any).tenantId || effectiveTenantId);
         
         // Pre-filter cities for the selected country - useEffect will handle this
         // but we set it here too in case cities are already loaded
@@ -203,7 +205,9 @@ const ServiceManager: React.FC = () => {
             price: parseFloat(formData.price) || 0,
             minChargeAmount: parseFloat((formData as any).minChargeAmount) || 0,
             pricingBasis: formData.pricingBasis || 'Distance (km)',
-            lastModifiedBy: 'usr_admin',
+            period: formData.pricingBasis === 'Fixed Fee' ? (formData as any).period : undefined,
+            tenantId: selectedTenantId || effectiveTenantId,
+            lastModifiedBy: currentUser?.email || 'usr_admin',
             lastModifiedAt: serverTimestamp(),
         };
 
@@ -335,13 +339,14 @@ const ServiceManager: React.FC = () => {
                     <table className="min-w-full text-sm">
                         <thead className="bg-blue-600 sticky top-0 z-10">
                             <tr>
-                                <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Service Name</th>
+                                <th scope="col" className="px-4 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700" style={{maxWidth: '180px'}}>Service Name</th>
                                 <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Type</th>
                                 <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Country</th>
                                 <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">City</th>
                                 <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Min Charge</th>
                                 <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Price</th>
                                 <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Pricing Basis</th>
+                                <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Period</th>
                                    <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Effective Date</th>
                                 <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Status</th>
                                 <th scope="col" className="px-6 py-4 text-left text-sm font-bold text-white uppercase tracking-wider border-b-2 border-blue-700">Last Modified</th>
@@ -356,8 +361,14 @@ const ServiceManager: React.FC = () => {
                             ) : (
                                 services.map((service) => (
                                     <tr key={service.id}>
-                                        <td className="px-6 py-4">
-                                            <div className="font-medium text-gray-900">{service.name}</div>
+                                        <td className="px-4 py-4" style={{maxWidth: '180px'}}>
+                                            <div className="font-medium text-gray-900 overflow-hidden" style={{
+                                                display: '-webkit-box',
+                                                WebkitLineClamp: 2,
+                                                WebkitBoxOrient: 'vertical',
+                                                lineHeight: '1.4em',
+                                                maxHeight: '2.8em'
+                                            }}>{service.name}</div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-gray-700">{service.type}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-gray-700">{service.country || 'N/A'}</td>
@@ -369,6 +380,7 @@ const ServiceManager: React.FC = () => {
                                             {new Intl.NumberFormat('de-DE', { style: 'currency', currency: service.currency }).format(service.price)}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-gray-700">{service.pricingBasis || 'Distance (km)'}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-gray-700">{(service as any).period || 'N/A'}</td>
                                            <td className="px-6 py-4 whitespace-nowrap text-gray-700">
                                                {service.effectiveDate ? new Date(service.effectiveDate).toLocaleDateString() : 'N/A'}
                                            </td>
@@ -413,6 +425,21 @@ const ServiceManager: React.FC = () => {
                                 <textarea name="description" id="description" value={formData.description} onChange={handleInputChange} rows={3} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"></textarea>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                                                                {currentUser?.role === UserRole.Administrator && (
+                                                                    <div className="sm:col-span-2">
+                                                                        <label className="block text-sm font-medium text-gray-700">Tenant</label>
+                                                                        <select
+                                                                            value={selectedTenantId}
+                                                                            onChange={(e) => setSelectedTenantId(e.target.value)}
+                                                                            className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                                                                        >
+                                                                            {Object.entries(TENANT_FEATURE_MAP).map(([id, cfg]) => (
+                                                                                <option key={id} value={id}>{cfg.label}</option>
+                                                                            ))}
+                                                                        </select>
+                                                                        <p className="text-xs text-gray-500 mt-1">Assign this service to a tenant</p>
+                                                                    </div>
+                                                                )}
                                 <div>
                                     <label htmlFor="type" className="block text-sm font-medium text-gray-700">Service Type</label>
                                     <div className="mt-1 flex items-center gap-2">
@@ -464,8 +491,24 @@ const ServiceManager: React.FC = () => {
                                     <select name="pricingBasis" id="pricingBasis" value={formData.pricingBasis} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required>
                                         <option value="Distance (km)">Distance (Km)</option>
                                         <option value="Time (hour)">Time (Hrs)</option>
+                                        <option value="Fixed Fee">Fixed Fee</option>
                                     </select>
                                 </div>
+                                {formData.pricingBasis === 'Fixed Fee' && (
+                                  <div>
+                                    <label htmlFor="period" className="block text-sm font-medium text-gray-700">Period <span className="text-red-500">*</span></label>
+                                    <select name="period" id="period" value={(formData as any).period} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" required>
+                                        <option value="">Select Period...</option>
+                                        <option value="Daily">Daily</option>
+                                        <option value="Weekly">Weekly</option>
+                                        <option value="Monthly">Monthly</option>
+                                        <option value="Quarterly">Quarterly</option>
+                                        <option value="Annual">Annual</option>
+                                        <option value="one-off">one-off</option>
+                                        <option value="Waived">Waived</option>
+                                    </select>
+                                  </div>
+                                )}
                                 <div>
                                     <label htmlFor="minChargeAmount" className="block text-sm font-medium text-gray-700">Minimum Charge Amount (optional)</label>
                                     <input type="number" name="minChargeAmount" id="minChargeAmount" value={(formData as any).minChargeAmount} onChange={handleInputChange} step="0.01" className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" />

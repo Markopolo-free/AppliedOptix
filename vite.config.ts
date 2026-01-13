@@ -30,7 +30,7 @@ export default defineConfig(async ({ mode }) => {
     return {
       base: mode === 'production' ? './' : '/',
       server: {
-        port: 3002,
+        port: 3000,
         host: '0.0.0.0',
         strictPort: true,
         headers: {

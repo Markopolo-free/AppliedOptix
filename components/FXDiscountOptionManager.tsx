@@ -7,6 +7,7 @@ import { db } from '../services/firebase';
 import { FXDiscountOption } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { logAudit } from '../services/auditService';
+import { queryFXDiscountOptionsByTenant, queryServicesByTenant } from '../services/multiTenantService';
 
 const FXDiscountOptionManager: React.FC = () => {
   const [options, setOptions] = useState<FXDiscountOption[]>([]);
@@ -15,7 +16,7 @@ const FXDiscountOptionManager: React.FC = () => {
   const [editingOption, setEditingOption] = useState<FXDiscountOption | null>(null);
   const [currencies, setCurrencies] = useState<{ code: string; name: string }[]>([]);
   const [fxSegments, setFxSegments] = useState<string[]>([]);
-  const { currentUser } = useAuth();
+  const { currentUser, effectiveTenantId } = useAuth();
 
   const [serviceTypes, setServiceTypes] = useState<{ id: string; name: string; type?: string }[]>([]);
   const [newOption, setNewOption] = useState({
@@ -35,18 +36,23 @@ const FXDiscountOptionManager: React.FC = () => {
   });
   // Fetch Services (Products) to use Service Management Type and ID consistently
   useEffect(() => {
-    const servicesRef = ref(db, 'services');
-    const unsubscribe = onValue(servicesRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.val();
-        const list = Object.entries(data).map(([id, s]: any) => ({ id, name: s.name, type: s.type }));
+    const loadServices = async () => {
+      try {
+        if (!currentUser?.tenantId) {
+          setServiceTypes([]);
+          return;
+        }
+        const services = await queryServicesByTenant(effectiveTenantId);
+        const list = services.map(s => ({ id: s.id, name: s.name, type: s.type }));
         setServiceTypes(list);
-      } else {
+      } catch (error) {
+        console.error('Error loading services:', error);
         setServiceTypes([]);
       }
-    });
-    return () => unsubscribe();
-  }, []);
+    };
+    
+    loadServices();
+  }, [currentUser?.tenantId]);
 
   // Helper function to get today's date in YYYY-MM-DD format
   function getTodayString(): string {
@@ -97,37 +103,28 @@ const FXDiscountOptionManager: React.FC = () => {
   const fetchOptions = useCallback(async () => {
     setIsLoading(true);
     try {
-      const optionsRef = ref(db, 'fxDiscountOptions');
-      onValue(optionsRef, (snapshot) => {
-        if (snapshot.exists()) {
-          const data = snapshot.val();
-          const list: FXDiscountOption[] = Object.keys(data).map((key) => {
-            const record = { id: key, ...data[key] };
-            // Ensure currency is always present, even if undefined
-            if (!('currency' in record)) {
-              record.currency = '';
-            }
-            return record;
-          });
+      if (!currentUser?.tenantId) {
+        console.error('No tenantId available');
+        setOptions([]);
+        setIsLoading(false);
+        return;
+      }
+      const list = await queryFXDiscountOptionsByTenant(effectiveTenantId);
 
-          // Sort by end date (most recent first)
-          list.sort((a, b) => {
-            const aEndDate = a.endDate ? new Date(a.endDate).getTime() : 0;
-            const bEndDate = b.endDate ? new Date(b.endDate).getTime() : 0;
-            return bEndDate - aEndDate;
-          });
-          setOptions(list);
-        } else {
-          setOptions([]);
-        }
+      // Sort by end date (most recent first)
+      list.sort((a, b) => {
+        const aEndDate = a.endDate ? new Date(a.endDate).getTime() : 0;
+        const bEndDate = b.endDate ? new Date(b.endDate).getTime() : 0;
+        return bEndDate - aEndDate;
       });
+      setOptions(list);
     } catch (error) {
-      console.error('Error fetching FX discount groups:', error);
-      alert('Could not fetch FX discount groups. See console for details.');
+      console.error('Error fetching FX discount options:', error);
+      setOptions([]);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [currentUser?.tenantId, effectiveTenantId]);
 
   useEffect(() => {
     fetchOptions();
@@ -235,6 +232,7 @@ const FXDiscountOptionManager: React.FC = () => {
       product: productId,
       currency: newOption.currency || '', // Always include currency explicitly
       optionNumber: editingOption?.optionNumber || generateOptionNumber(),
+      tenantId: currentUser?.tenantId || 'default-tenant',
       lastModifiedBy: currentUser?.email || 'system',
       lastModifiedAt: serverTimestamp(),
     };

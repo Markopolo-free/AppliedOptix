@@ -4,6 +4,7 @@ import { db } from '../services/firebase';
 import { PricingRule, PricingBasis, UserGroup, Zone, Service, ApprovalStatus, UserRole, ServiceTypeEntry } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { logAudit, calculateChanges } from '../services/auditService';
+import { queryPricingByTenant, queryServicesByTenant } from '../services/multiTenantService';
 
 interface ServiceTypeOption {
     id: string; // unique key: serviceTypeId or serviceTypeId-provider-model
@@ -32,7 +33,7 @@ const initialNewRuleState = {
 };
 
 const PricingManager: React.FC = () => {
-    const { currentUser } = useAuth();
+  const { currentUser, effectiveTenantId } = useAuth();
     const [rules, setRules] = useState<PricingRule[]>([]);
     const [zones, setZones] = useState<Zone[]>([]); // For dropdowns and display
     const [selectedLocation, setSelectedLocation] = useState<string>('');
@@ -50,53 +51,45 @@ const PricingManager: React.FC = () => {
     const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
-            // Fetch pricing rules
-            const rulesRef = ref(db, 'pricingRules');
-            const rulesSnapshot = await get(rulesRef);
-            if (rulesSnapshot.exists()) {
-                const data = rulesSnapshot.val();
-                const list: PricingRule[] = Object.keys(data).map(key => ({
-                    id: key,
-                    ...data[key],
-                    serviceIds: data[key].serviceIds || [],
-                    lastModifiedAt: new Date(data[key].lastModifiedAt).toISOString(),
-                }));
-                // Sort by service type name alphabetically
-                list.sort((a, b) => {
-                    const aServiceType = (a.serviceTypeEntries && a.serviceTypeEntries.length > 0)
-                        ? a.serviceTypeEntries[0].serviceTypeName
-                        : '';
-                    const bServiceType = (b.serviceTypeEntries && b.serviceTypeEntries.length > 0)
-                        ? b.serviceTypeEntries[0].serviceTypeName
-                        : '';
-                    return aServiceType.localeCompare(bServiceType);
-                });
-                setRules(list);
-            } else {
+            if (!currentUser?.tenantId) {
+                console.error('No tenantId available for user');
                 setRules([]);
+                setServices([]);
+                setIsLoading(false);
+                return;
             }
+
+            // Fetch pricing rules for tenant
+            const list = await queryPricingByTenant(effectiveTenantId);
+            // Sort by service type name alphabetically
+            list.sort((a, b) => {
+                const aServiceType = (a.serviceTypeEntries && a.serviceTypeEntries.length > 0)
+                    ? a.serviceTypeEntries[0].serviceTypeName
+                    : '';
+                const bServiceType = (b.serviceTypeEntries && b.serviceTypeEntries.length > 0)
+                    ? b.serviceTypeEntries[0].serviceTypeName
+                    : '';
+                return aServiceType.localeCompare(bServiceType);
+            });
+            setRules(list);
 
             // Fetch zones for dropdown from reference data
             const zonesRef = ref(db, 'referenceZones');
             const zonesSnapshot = await get(zonesRef);
             if (zonesSnapshot.exists()) {
                 const data = zonesSnapshot.val();
-                const list: Zone[] = Object.keys(data).map(key => ({ id: key, ...data[key] }));
-                setZones(list);
+                const zoneList: Zone[] = Object.keys(data).map(key => ({ id: key, ...data[key] }));
+                setZones(zoneList);
             }
 
-            // Fetch services for reference (legacy)
-            const servicesRef = ref(db, 'services');
-            const servicesSnapshot = await get(servicesRef);
-            if (servicesSnapshot.exists()) {
-                const data = servicesSnapshot.val();
-                const list: Service[] = Object.keys(data).map(key => ({ id: key, ...data[key] }));
-                setServices(list);
-            }
+            // Fetch services for reference - with tenant filtering
+            const servicesList = await queryServicesByTenant(effectiveTenantId);
+            setServices(servicesList);
 
             // Fetch service types from reference data and expand with providers
             const serviceTypesRef = ref(db, 'referenceServiceTypes');
             const serviceTypesSnapshot = await get(serviceTypesRef);
+
             const options: ServiceTypeOption[] = [];
             
             if (serviceTypesSnapshot.exists()) {
@@ -275,6 +268,7 @@ const PricingManager: React.FC = () => {
             zoneId: formData.zoneId || null,
             zoneDiscount: formData.zoneDiscount ? parseFloat(formData.zoneDiscount) : null,
             status: ApprovalStatus.Pending,
+            tenantId: currentUser?.tenantId || 'default-tenant',
             makerName: userName,
             makerEmail: userEmail,
             makerTimestamp: new Date().toISOString(),

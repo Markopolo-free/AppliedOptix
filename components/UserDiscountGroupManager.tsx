@@ -4,9 +4,10 @@ import { db } from '../services/firebase';
 import { UserDiscountGroup, Service } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { logAudit } from '../services/auditService';
+import { queryDiscountGroupsByTenant, queryServicesByTenant } from '../services/multiTenantService';
 
 const UserDiscountGroupManager: React.FC = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, effectiveTenantId } = useAuth();
   const [discountGroups, setDiscountGroups] = useState<UserDiscountGroup[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,42 +29,35 @@ const UserDiscountGroupManager: React.FC = () => {
 
   // Load discount groups from Firebase
   useEffect(() => {
-    const discountGroupsRef = ref(db, 'userDiscountGroups');
-    const unsubscribe = onValue(discountGroupsRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const groupsArray = Object.keys(data).map(key => ({
-          id: key,
-          ...data[key]
-        }));
-        setDiscountGroups(groupsArray);
-      } else {
+    const loadData = async () => {
+      try {
+        const groups = await queryDiscountGroupsByTenant(effectiveTenantId);
+        setDiscountGroups(groups);
+      } catch (error) {
+        console.error('Error loading discount groups:', error);
         setDiscountGroups([]);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    });
+    };
 
-    return () => unsubscribe();
-  }, []);
+    loadData();
+  }, [currentUser?.tenantId, effectiveTenantId]);
 
   // Load services from Firebase
   useEffect(() => {
-    const servicesRef = ref(db, 'services');
-    const unsubscribe = onValue(servicesRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const servicesArray = Object.keys(data).map(key => ({
-          id: key,
-          ...data[key]
-        }));
-        setServices(servicesArray);
-      } else {
+    const loadServices = async () => {
+      try {
+        const servicesList = await queryServicesByTenant(effectiveTenantId);
+        setServices(servicesList);
+      } catch (error) {
+        console.error('Error loading services:', error);
         setServices([]);
       }
-    });
+    };
 
-    return () => unsubscribe();
-  }, []);
+    loadServices();
+  }, [currentUser?.tenantId, effectiveTenantId]);
 
   const resetForm = () => {
     setFormData({
@@ -161,6 +155,7 @@ const UserDiscountGroupManager: React.FC = () => {
         capValue: capValue,
         capPeriod: formData.capPeriod,
         effectiveDate: formData.effectiveDate,
+        tenantId: currentUser?.tenantId || 'default-tenant',
         lastModifiedBy: currentUser.email,
         lastModifiedAt: timestamp
       };

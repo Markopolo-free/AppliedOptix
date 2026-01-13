@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { ref, onValue, push, update, remove } from 'firebase/database';
+import { ref, onValue, push, update, remove, get } from 'firebase/database';
 import { logAudit } from '../services/auditService';
 import { db } from '../services/firebase';
 import { Campaign, DiscountType, Zone } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { queryCampaignsByTenant } from '../services/multiTenantService';
 
 const initialNewCampaignState: Partial<Campaign> = {
   name: '',
@@ -27,7 +28,7 @@ const CampaignManager: React.FC = () => {
   const [zones, setZones] = useState<Zone[]>([]);
   const [newCampaign, setNewCampaign] = useState<Partial<Campaign>>(initialNewCampaignState);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
-  const { currentUser } = useAuth();
+  const { currentUser, effectiveTenantId } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCloning, setIsCloning] = useState(false);
 
@@ -81,7 +82,10 @@ const CampaignManager: React.FC = () => {
     const unsubCampaigns = onValue(campaignsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        const arr = Object.entries(data).map(([id, item]: [string, any]) => ({ ...item, id }));
+        // Include legacy records with no tenantId plus those matching effective tenant
+        const arr = Object.entries(data)
+          .filter(([id, item]: [string, any]) => !item.tenantId || item.tenantId === effectiveTenantId)
+          .map(([id, item]: [string, any]) => ({ ...item, id }));
         setCampaigns(arr);
       } else {
         setCampaigns([]);
@@ -94,7 +98,7 @@ const CampaignManager: React.FC = () => {
       unsubZones();
       unsubCampaigns();
     };
-  }, []);
+  }, [currentUser?.tenantId, effectiveTenantId]);
 
   // Placeholder handler functions
   const handleOpenModalForAdd = () => {
@@ -129,7 +133,11 @@ const CampaignManager: React.FC = () => {
     } else {
       // Add new campaign (including clones)
       const campaignRef = ref(db, 'campaigns');
-      push(campaignRef, { ...newCampaign });
+      push(campaignRef, { 
+        ...newCampaign,
+        // Use effective tenant so admin overrides save correctly
+        tenantId: effectiveTenantId
+      });
     }
     setIsModalOpen(false);
     setIsCloning(false);
