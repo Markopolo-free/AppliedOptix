@@ -43,10 +43,16 @@ try {
   console.log('[diag] React version:', (React as any).version);
 } catch {}
 
+// Prevent double-mounting by checking if root is already initialized
+let root: ReactDOM.Root | null = null;
+
 // Load test credentials before rendering the app
 loadTestCredentials().finally(() => {
-  const root = ReactDOM.createRoot(rootElement);
   try {
+    // Only create root once to avoid double-mounting issues during HMR
+    if (!root) {
+      root = ReactDOM.createRoot(rootElement);
+    }
     // Disable StrictMode during investigation to avoid double-invocation
     root.render(
       <ErrorBoundary>
