@@ -41,7 +41,7 @@ export async function queryServicesByTenant(tenantId: string) {
  */
 export async function queryPricingByTenant(tenantId: string) {
   try {
-    const pricingRef = ref(db, 'pricing');
+    const pricingRef = ref(db, 'pricingRules');
     const snapshot = await get(pricingRef);
     if (!snapshot.exists()) return [];
     
