@@ -264,6 +264,101 @@ export async function queryUsersByTenant(tenantId: string) {
 }
 
 /**
+ * Get all banking interest products for a specific tenant
+ */
+export async function queryInterestProductsByTenant(tenantId: string) {
+  try {
+    const productsRef = ref(db, 'banking/interestProducts');
+    const snapshot = await get(productsRef);
+    if (!snapshot.exists()) return [];
+
+    const data = snapshot.val();
+    return Object.keys(data)
+      .map(key => ({ id: key, ...data[key] }))
+      .filter(product => product.tenantId === tenantId);
+  } catch (error) {
+    console.error('Error querying interest products:', error);
+    return [];
+  }
+}
+
+/**
+ * Get all banking interest rate books for a specific tenant
+ */
+export async function queryInterestRateBooksByTenant(tenantId: string) {
+  try {
+    const rateBooksRef = ref(db, 'banking/interestRateBooks');
+    const snapshot = await get(rateBooksRef);
+    if (!snapshot.exists()) return [];
+
+    const data = snapshot.val();
+    return Object.keys(data)
+      .map(key => ({ id: key, ...data[key] }))
+      .filter(rateBook => rateBook.tenantId === tenantId);
+  } catch (error) {
+    console.error('Error querying interest rate books:', error);
+    return [];
+  }
+}
+
+/**
+ * Get all banking interest accrual results for a specific tenant
+ */
+export async function queryInterestAccrualsByTenant(tenantId: string) {
+  try {
+    const accrualsRef = ref(db, 'banking/accruals');
+    const snapshot = await get(accrualsRef);
+    if (!snapshot.exists()) return [];
+
+    const data = snapshot.val();
+    return Object.keys(data)
+      .map(key => ({ id: key, ...data[key] }))
+      .filter(accrual => accrual.tenantId === tenantId);
+  } catch (error) {
+    console.error('Error querying interest accruals:', error);
+    return [];
+  }
+}
+
+/**
+ * Get all banking interest payout results for a specific tenant
+ */
+export async function queryInterestPayoutsByTenant(tenantId: string) {
+  try {
+    const payoutsRef = ref(db, 'banking/payouts');
+    const snapshot = await get(payoutsRef);
+    if (!snapshot.exists()) return [];
+
+    const data = snapshot.val();
+    return Object.keys(data)
+      .map(key => ({ id: key, ...data[key] }))
+      .filter(payout => payout.tenantId === tenantId);
+  } catch (error) {
+    console.error('Error querying interest payouts:', error);
+    return [];
+  }
+}
+
+/**
+ * Get all banking interest assignments for a specific tenant
+ */
+export async function queryInterestAssignmentsByTenant(tenantId: string) {
+  try {
+    const assignmentsRef = ref(db, 'banking/interestAssignments');
+    const snapshot = await get(assignmentsRef);
+    if (!snapshot.exists()) return [];
+
+    const data = snapshot.val();
+    return Object.keys(data)
+      .map(key => ({ id: key, ...data[key] }))
+      .filter(assignment => assignment.tenantId === tenantId);
+  } catch (error) {
+    console.error('Error querying interest assignments:', error);
+    return [];
+  }
+}
+
+/**
  * Verify that a record belongs to the specified tenant
  * Use this before allowing updates/deletes to ensure authorization
  */

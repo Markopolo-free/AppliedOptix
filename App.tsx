@@ -11,6 +11,7 @@ import { NotificationToast } from './components/NotificationToast';
 import { initNotifications } from './services/notificationService';
 import TokenStatus from './components/TokenStatus';
 import TopMenu from './components/TopMenu';
+import { isBankingInterestMvpEnabled } from './services/bankingFeatureFlags';
 
 
 // Lazy-load manager components for route-based code splitting
@@ -41,6 +42,14 @@ const PushTestAdmin = lazy(() => import('./components/PushTestAdmin'));
 const TokenListAdmin = lazy(() => import('./components/TokenListAdmin'));
 const ReferralCodeManager = lazy(() => import('./components/ReferralCodeManager'));
 const DomainMenuBuilder = lazy(() => import('./components/DomainMenuBuilder'));
+const InterestProductsManager = lazy(() => import('./components/InterestProductsManager'));
+const InterestRateBooksManager = lazy(() => import('./components/InterestRateBooksManager'));
+const InterestApprovalsManager = lazy(() => import('./components/InterestApprovalsManager'));
+const InterestAssignmentsManager = lazy(() => import('./components/InterestAssignmentsManager'));
+const InterestCalculatorManager = lazy(() => import('./components/InterestCalculatorManager'));
+const InterestResultsManager = lazy(() => import('./components/InterestResultsManager'));
+const InterestReconciliationManager = lazy(() => import('./components/InterestReconciliationManager'));
+const InterestAuditManager = lazy(() => import('./components/InterestAuditManager'));
 
 // View type now imported from types.ts
 
@@ -48,6 +57,7 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isAuthenticated, setAuthenticated] = useState(false);
+  const bankingInterestMvpEnabled = isBankingInterestMvpEnabled();
 
   // Initialize Firebase notifications on app load
   useEffect(() => {
@@ -131,6 +141,22 @@ const App: React.FC = () => {
         return <ReferralCodeManager />;
       case 'domainMenuBuilder':
         return <DomainMenuBuilder />;
+      case 'interestProducts':
+        return bankingInterestMvpEnabled ? <InterestProductsManager /> : <Dashboard />;
+      case 'interestRateBooks':
+        return bankingInterestMvpEnabled ? <InterestRateBooksManager /> : <Dashboard />;
+      case 'interestApprovals':
+        return bankingInterestMvpEnabled ? <InterestApprovalsManager /> : <Dashboard />;
+      case 'interestAssignments':
+        return bankingInterestMvpEnabled ? <InterestAssignmentsManager /> : <Dashboard />;
+      case 'interestCalculator':
+        return bankingInterestMvpEnabled ? <InterestCalculatorManager /> : <Dashboard />;
+      case 'interestResults':
+        return bankingInterestMvpEnabled ? <InterestResultsManager /> : <Dashboard />;
+      case 'interestReconciliation':
+        return bankingInterestMvpEnabled ? <InterestReconciliationManager /> : <Dashboard />;
+      case 'interestAudit':
+        return bankingInterestMvpEnabled ? <InterestAuditManager /> : <Dashboard />;
       default:
         return <Dashboard />;
     }

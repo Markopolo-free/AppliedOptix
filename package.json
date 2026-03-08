@@ -21,7 +21,9 @@
     "email:diagnose": "node scripts/diagnoseEmailSends.cjs",
     "referral:list": "node scripts/listReferralCodes.cjs",
     "referral:register": "node scripts/registerWithReferralCode.cjs",
-    "referral:email": "node scripts/sendReferralEmail.cjs"
+    "referral:email": "node scripts/sendReferralEmail.cjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@google/genai": "^1.27.0",
@@ -44,6 +46,7 @@
     "@vitejs/plugin-react": "^5.0.0",
     "rollup-plugin-visualizer": "^6.0.5",
     "typescript": "~5.8.2",
-    "vite": "^7.2.4"
+    "vite": "^7.2.4",
+    "vitest": "^3.2.4"
   }
 }

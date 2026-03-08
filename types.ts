@@ -37,7 +37,15 @@ export type View =
     | 'pushTestAdmin'
     | 'tokenListAdmin'
     | 'referralCodes'
-    | 'domainMenuBuilder';  // Visual menu configuration tool
+    | 'domainMenuBuilder'
+    | 'interestProducts'
+    | 'interestRateBooks'
+    | 'interestApprovals'
+    | 'interestAssignments'
+    | 'interestCalculator'
+    | 'interestResults'
+    | 'interestReconciliation'
+    | 'interestAudit';  // Visual menu configuration tool
 
 // Domain to View mapping - controls which views appear in each domain's sidebar
 // SECURITY: This is UI-level filtering only. Database-level access control MUST be enforced separately.
@@ -64,6 +72,129 @@ export interface UserDomainAccess {
     allowedDomains: ProductDomain[]; // Domains this user can access
     defaultDomain?: ProductDomain;   // Domain to show on login
     tenantId?: string;                // For multi-tenant data isolation
+}
+
+export type InterestProductType = 'SAVINGS' | 'TERM_DEPOSIT';
+export type DayCountConvention = 'ACT/365F' | 'ACT/360' | '30E/360';
+export type AccrualFrequency = 'DAILY' | 'MONTHLY';
+export type PayoutFrequency = 'MONTHLY' | 'QUARTERLY' | 'AT_MATURITY';
+export type CompoundingType = 'NONE' | 'DAILY' | 'MONTHLY';
+export type InterestApprovalState = 'Draft' | 'Pending' | 'Approved' | 'Rejected';
+
+export interface InterestProduct {
+    id: string;
+    productCode: string;
+    name: string;
+    productType: InterestProductType;
+    currency: string;
+    dayCountConvention: DayCountConvention;
+    accrualFrequency: AccrualFrequency;
+    payoutFrequency: PayoutFrequency;
+    compounding: CompoundingType;
+    roundingScale: number;
+    roundingMode: string;
+    minimumBalance?: number;
+    allowNegativeRates: boolean;
+    status: InterestApprovalState;
+    tenantId: string;
+    makerName?: string;
+    makerEmail?: string;
+    makerTimestamp?: string;
+    checkerName?: string;
+    checkerEmail?: string;
+    checkerTimestamp?: string;
+    lastModifiedBy: string;
+    lastModifiedAt: string;
+}
+
+export interface InterestRateTier {
+    id: string;
+    tierFromAmount: number;
+    tierToAmount?: number | null;
+    annualRatePercent: number;
+    isPromotional: boolean;
+    promoFrom?: string;
+    promoTo?: string;
+}
+
+export interface InterestRateBook {
+    id: string;
+    rateBookCode: string;
+    productId: string;
+    productCode: string;
+    productName: string;
+    effectiveFrom: string;
+    effectiveTo?: string;
+    tiers: InterestRateTier[];
+    status: InterestApprovalState;
+    version: number;
+    tenantId: string;
+    makerName?: string;
+    makerEmail?: string;
+    makerTimestamp?: string;
+    checkerName?: string;
+    checkerEmail?: string;
+    checkerTimestamp?: string;
+    publishedBy?: string;
+    publishedAt?: string;
+    lastModifiedBy: string;
+    lastModifiedAt: string;
+}
+
+export interface InterestAccrualResult {
+    id: string;
+    accountId: string;
+    asOfDate: string;
+    principalForDay: number;
+    appliedRate: number;
+    dayFraction: number;
+    accruedAmount: number;
+    rateBookCode?: string;
+    productCode?: string;
+    calculationTraceId?: string;
+    status?: string;
+    tenantId: string;
+    lastModifiedAt?: string;
+}
+
+export interface InterestPayoutResult {
+    id: string;
+    accountId: string;
+    periodStart: string;
+    periodEnd: string;
+    grossInterest: number;
+    taxAmount: number;
+    netInterest: number;
+    payoutDate: string;
+    status: string;
+    productCode?: string;
+    rateBookCode?: string;
+    tenantId: string;
+    lastModifiedAt?: string;
+}
+
+export interface InterestAssignment {
+    id: string;
+    accountId: string;
+    customerId?: string;
+    productId: string;
+    productCode: string;
+    productName: string;
+    rateBookId?: string;
+    rateBookCode?: string;
+    segmentCode?: string;
+    startDate: string;
+    endDate?: string;
+    status: InterestApprovalState;
+    tenantId: string;
+    makerName?: string;
+    makerEmail?: string;
+    makerTimestamp?: string;
+    checkerName?: string;
+    checkerEmail?: string;
+    checkerTimestamp?: string;
+    lastModifiedBy: string;
+    lastModifiedAt: string;
 }
 
 export interface Customer {

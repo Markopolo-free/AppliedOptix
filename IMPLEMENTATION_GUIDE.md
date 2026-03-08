@@ -3,6 +3,13 @@
 **Implementation Date:** January 12, 2026  
 **Status:** ✅ Complete and Ready for Testing
 
+## Where to start
+
+- Main project entry: [README.md](README.md)
+- Domain security model and rollback steps: [SECURITY_DOMAINS.md](SECURITY_DOMAINS.md)
+- Banking interest delivery plan and scope: [BANK_INTEREST_MVP_BLUEPRINT.md](BANK_INTEREST_MVP_BLUEPRINT.md)
+- Banking calculator UAT/checker invariants: [BANK_INTEREST_MVP_BLUEPRINT.md](BANK_INTEREST_MVP_BLUEPRINT.md#10-calculator-invariants-uatchecker-reference)
+
 ## What Was Implemented
 
 A complete multi-portal domain system that allows you to demonstrate different product capabilities (FX, eMobility, Financial Services) to different customers while maintaining data isolation.
@@ -182,6 +189,12 @@ See **`SECURITY_DOMAINS.md`** for complete documentation on:
 - Data migration scripts
 - Testing procedures
 - Rollback procedures
+
+## Banking Interest QA Reference
+
+For banking calculator acceptance checks (day-count conventions, override precedence, promotional tier precedence, compounding behavior, and trace expectations), see:
+
+- [Calculator Invariants (UAT/Checker Reference)](BANK_INTEREST_MVP_BLUEPRINT.md#10-calculator-invariants-uatchecker-reference)
 
 ## Configuration Options
 

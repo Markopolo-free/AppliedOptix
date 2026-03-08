@@ -53,6 +53,16 @@ export const AVAILABLE_VIEWS = {
   calculatorService: 'Pricing Calculator - Calculate charges',
   campaignsReport: 'Campaigns Report - Campaign analytics',
   mgmNotifications: 'MGM Notifications - Member-get-member alerts',
+
+  // Banking Interest MVP Features
+  interestProducts: 'Interest Products - Configure product setup and conventions',
+  interestRateBooks: 'Interest Rate Books - Effective-dated tiered rate management',
+  interestApprovals: 'Interest Approvals - Maker-checker workbench',
+  interestAssignments: 'Interest Assignments - Account to product mapping',
+  interestCalculator: 'Interest Calculator - Preview accrual and payout calculations',
+  interestResults: 'Interest Results - Accrual and payout outputs',
+  interestReconciliation: 'Interest Reconciliation - Variance and exceptions',
+  interestAudit: 'Interest Audit Trail - Auditable lifecycle history',
 } as const;
 
 // ============================================================================
@@ -130,6 +140,14 @@ export const TENANT_FEATURE_MAP: Record<string, TenantFeatureConfig> = {
       'calculatorService',
       'campaignsReport',
       'mgmNotifications',
+      'interestProducts',
+      'interestRateBooks',
+      'interestApprovals',
+      'interestAssignments',
+      'interestCalculator',
+      'interestResults',
+      'interestReconciliation',
+      'interestAudit',
       // Admin tools
       'users',
       'companyDetails',
@@ -159,6 +177,14 @@ export const TENANT_FEATURE_MAP: Record<string, TenantFeatureConfig> = {
       'customerActivityManager',
       'calculatorService',
       'campaignsReport',
+      'interestProducts',
+      'interestRateBooks',
+      'interestApprovals',
+      'interestAssignments',
+      'interestCalculator',
+      'interestResults',
+      'interestReconciliation',
+      'interestAudit',
       // Admin tools
       'users',
       'companyDetails',
@@ -184,6 +210,14 @@ export const TENANT_FEATURE_MAP: Record<string, TenantFeatureConfig> = {
       'mgmNotifications',
       'customerManager',
       'customerActivityManager',
+      'interestProducts',
+      'interestRateBooks',
+      'interestApprovals',
+      'interestAssignments',
+      'interestCalculator',
+      'interestResults',
+      'interestReconciliation',
+      'interestAudit',
       // Admin tools
       'users',
       'companyDetails',
