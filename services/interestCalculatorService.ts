@@ -51,7 +51,14 @@ export const getDayFraction = (date: Date, convention: DayCountConvention): numb
 export const resolveTierRate = (tiers: InterestRateTier[], principal: number, dateIso: string): number => {
   const inRange = (tier: InterestRateTier) => {
     const to = tier.tierToAmount == null ? Number.POSITIVE_INFINITY : tier.tierToAmount;
-    return principal >= tier.tierFromAmount && principal < to;
+    if (principal < tier.tierFromAmount) return false;
+    if (principal < to) return true;
+    if (principal > to) return false;
+
+    // Handle exact upper-bound matches. If another tier starts at this boundary,
+    // prefer that next tier and treat this tier as exclusive at the top edge.
+    const hasAdjacentNextTier = tiers.some((other) => other !== tier && other.tierFromAmount === to);
+    return !hasAdjacentNextTier;
   };
 
   const promo = tiers.find((tier) => {

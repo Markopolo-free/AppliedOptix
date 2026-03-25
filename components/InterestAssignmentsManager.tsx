@@ -132,15 +132,11 @@ const InterestAssignmentsManager: React.FC = () => {
     const rateBook = rateBooks.find((book) => book.id === formData.rateBookId);
     const nowIso = new Date().toISOString();
 
-    return {
+    const payload: any = {
       accountId: formData.accountId.trim(),
-      customerId: formData.customerId.trim() || undefined,
       productId: product.id,
       productCode: product.productCode,
       productName: product.name,
-      rateBookId: rateBook?.id,
-      rateBookCode: rateBook?.rateBookCode,
-      segmentCode: formData.segmentCode.trim() || undefined,
       startDate: formData.startDate,
       endDate: formData.endDate || '',
       status,
@@ -148,12 +144,20 @@ const InterestAssignmentsManager: React.FC = () => {
       makerName: editingItem?.makerName || currentUser?.name || 'Unknown User',
       makerEmail: editingItem?.makerEmail || currentUser?.email || '',
       makerTimestamp: editingItem?.makerTimestamp || nowIso,
-      checkerName: editingItem?.checkerName,
-      checkerEmail: editingItem?.checkerEmail,
-      checkerTimestamp: editingItem?.checkerTimestamp,
       lastModifiedBy: currentUser?.email || 'usr_admin',
       lastModifiedAt: nowIso,
     };
+
+    // Only include optional fields when they have values — Firebase rejects undefined
+    if (formData.customerId.trim()) payload.customerId = formData.customerId.trim();
+    if (rateBook?.id) payload.rateBookId = rateBook.id;
+    if (rateBook?.rateBookCode) payload.rateBookCode = rateBook.rateBookCode;
+    if (formData.segmentCode.trim()) payload.segmentCode = formData.segmentCode.trim();
+    if (editingItem?.checkerName) payload.checkerName = editingItem.checkerName;
+    if (editingItem?.checkerEmail) payload.checkerEmail = editingItem.checkerEmail;
+    if (editingItem?.checkerTimestamp) payload.checkerTimestamp = editingItem.checkerTimestamp;
+
+    return payload as Omit<InterestAssignment, 'id'>;
   };
 
   const saveAssignment = useCallback(async (targetStatus: InterestApprovalState) => {

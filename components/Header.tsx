@@ -10,6 +10,8 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
   const { currentUser, tenantOverride, setTenantOverride, effectiveTenantId, isAdmin } = useAuth();
   const avatarSrc = currentUser?.profilePicture || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(currentUser?.name || 'User') + '&background=0D8ABC&color=fff&size=100';
+  const walkthroughBasePath = import.meta.env.BASE_URL === './' ? '/' : import.meta.env.BASE_URL;
+  const walkthroughUrl = `${window.location.origin}${walkthroughBasePath}interest-client-walkthrough.html?client=1`;
 
   const availableTenants = [
     { id: 'emobility-demo', name: 'eMobility Demo' },
@@ -84,6 +86,14 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
       </div>
 
       <div className="flex items-center">
+        <a
+          href={walkthroughUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="hidden md:inline-flex items-center mr-4 px-3 py-2 text-sm font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
+        >
+          Client Walkthrough
+        </a>
         <div className="flex items-center">
           <img className="object-cover w-10 h-10 rounded-full border border-gray-200" src={avatarSrc} alt={currentUser?.name || 'User Avatar'} />
           <div className="ml-2 hidden sm:block">

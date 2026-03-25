@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { push, ref, remove, set, update } from 'firebase/database';
+import { get, push, ref, remove, set, update } from 'firebase/database';
 import { db } from '../services/firebase';
 import {
   InterestProduct,
@@ -30,6 +30,55 @@ const initialFormState = {
   allowNegativeRates: false,
 };
 
+type InterestReferenceOptionSet = {
+  productTypes: string[];
+  currencies: string[];
+  dayCountConventions: string[];
+  accrualFrequencies: string[];
+  payoutFrequencies: string[];
+  compoundingTypes: string[];
+  roundingScales: string[];
+  roundingModes: string[];
+};
+
+const INTEREST_REFERENCE_DEFAULTS: InterestReferenceOptionSet = {
+  productTypes: [],
+  currencies: [],
+  dayCountConventions: [],
+  accrualFrequencies: [],
+  payoutFrequencies: [],
+  compoundingTypes: [],
+  roundingScales: [],
+  roundingModes: [],
+};
+
+const INTEREST_REFERENCE_PATHS: Record<keyof InterestReferenceOptionSet, string> = {
+  productTypes: 'referenceInterestProductTypes',
+  currencies: 'referenceInterestCurrencies',
+  dayCountConventions: 'referenceInterestDayCountConventions',
+  accrualFrequencies: 'referenceInterestAccrualFrequencies',
+  payoutFrequencies: 'referenceInterestPayoutFrequencies',
+  compoundingTypes: 'referenceInterestCompoundingTypes',
+  roundingScales: 'referenceInterestRoundingScales',
+  roundingModes: 'referenceInterestRoundingModes',
+};
+
+const toNormalizedOptions = (snapshotValue: any, fallback: string[]): string[] => {
+  const source = snapshotValue || {};
+  const values = Object.values(source)
+    .map((entry: any) => {
+      if (typeof entry === 'string') return entry.trim();
+      if (entry && typeof entry.name === 'string') return entry.name.trim();
+      if (entry && typeof entry.code === 'string') return entry.code.trim();
+      return '';
+    })
+    .filter(Boolean);
+
+  const uniqueSorted = Array.from(new Set(values));
+  if (uniqueSorted.length === 0) return fallback;
+  return uniqueSorted.sort((a, b) => a.localeCompare(b));
+};
+
 const InterestProductsManager: React.FC = () => {
   const { currentUser, effectiveTenantId } = useAuth();
 
@@ -40,6 +89,8 @@ const InterestProductsManager: React.FC = () => {
   const [formData, setFormData] = useState(initialFormState);
   const [editingProduct, setEditingProduct] = useState<InterestProduct | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [referenceOptions, setReferenceOptions] = useState<InterestReferenceOptionSet>(INTEREST_REFERENCE_DEFAULTS);
+  const [isLoadingReferenceData, setIsLoadingReferenceData] = useState(true);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -64,9 +115,47 @@ const InterestProductsManager: React.FC = () => {
     }
   }, [effectiveTenantId]);
 
+  const fetchReferenceOptions = useCallback(async () => {
+    setIsLoadingReferenceData(true);
+    try {
+      const entries = await Promise.all(
+        (Object.keys(INTEREST_REFERENCE_PATHS) as Array<keyof InterestReferenceOptionSet>).map(async (key) => {
+          const snapshot = await get(ref(db, INTEREST_REFERENCE_PATHS[key]));
+          return [key, toNormalizedOptions(snapshot.val(), INTEREST_REFERENCE_DEFAULTS[key])] as const;
+        })
+      );
+
+      const loaded = entries.reduce((acc, [key, values]) => {
+        acc[key] = values;
+        return acc;
+      }, { ...INTEREST_REFERENCE_DEFAULTS } as InterestReferenceOptionSet);
+
+      setReferenceOptions(loaded);
+      setFormData((prev) => ({
+        ...prev,
+        productType: loaded.productTypes.includes(prev.productType) ? prev.productType : loaded.productTypes[0],
+        currency: loaded.currencies.includes(prev.currency) ? prev.currency : loaded.currencies[0],
+        dayCountConvention: loaded.dayCountConventions.includes(prev.dayCountConvention) ? prev.dayCountConvention : loaded.dayCountConventions[0],
+        accrualFrequency: loaded.accrualFrequencies.includes(prev.accrualFrequency) ? prev.accrualFrequency : loaded.accrualFrequencies[0],
+        payoutFrequency: loaded.payoutFrequencies.includes(prev.payoutFrequency) ? prev.payoutFrequency : loaded.payoutFrequencies[0],
+        compounding: loaded.compoundingTypes.includes(prev.compounding) ? prev.compounding : loaded.compoundingTypes[0],
+        roundingScale: loaded.roundingScales.includes(prev.roundingScale) ? prev.roundingScale : loaded.roundingScales[0],
+        roundingMode: loaded.roundingModes.includes(prev.roundingMode) ? prev.roundingMode : loaded.roundingModes[0],
+      }));
+    } catch (error) {
+      console.error('Failed to load interest reference options:', error);
+    } finally {
+      setIsLoadingReferenceData(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
+
+  useEffect(() => {
+    fetchReferenceOptions();
+  }, [fetchReferenceOptions]);
 
   const filteredProducts = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -83,9 +172,34 @@ const InterestProductsManager: React.FC = () => {
 
   const resetForm = () => {
     setEditingProduct(null);
-    setFormData(initialFormState);
+    setFormData({
+      ...initialFormState,
+      productType: referenceOptions.productTypes[0] || initialFormState.productType,
+      currency: referenceOptions.currencies[0] || initialFormState.currency,
+      dayCountConvention: referenceOptions.dayCountConventions[0] || initialFormState.dayCountConvention,
+      accrualFrequency: referenceOptions.accrualFrequencies[0] || initialFormState.accrualFrequency,
+      payoutFrequency: referenceOptions.payoutFrequencies[0] || initialFormState.payoutFrequency,
+      compounding: referenceOptions.compoundingTypes[0] || initialFormState.compounding,
+      roundingScale: referenceOptions.roundingScales[0] || initialFormState.roundingScale,
+      roundingMode: referenceOptions.roundingModes[0] || initialFormState.roundingMode,
+    });
     setErrorMessage('');
   };
+
+  const missingReferenceFields = useMemo(() => {
+    const checks: Array<{ label: string; values: string[] }> = [
+      { label: 'Product Type', values: referenceOptions.productTypes },
+      { label: 'Currency', values: referenceOptions.currencies },
+      { label: 'Day Count', values: referenceOptions.dayCountConventions },
+      { label: 'Accrual Frequency', values: referenceOptions.accrualFrequencies },
+      { label: 'Payout Frequency', values: referenceOptions.payoutFrequencies },
+      { label: 'Compounding', values: referenceOptions.compoundingTypes },
+      { label: 'Rounding Scale', values: referenceOptions.roundingScales },
+      { label: 'Rounding Mode', values: referenceOptions.roundingModes },
+    ];
+
+    return checks.filter((c) => c.values.length === 0).map((c) => c.label);
+  }, [referenceOptions]);
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type, checked } = event.target as HTMLInputElement;
@@ -125,21 +239,54 @@ const InterestProductsManager: React.FC = () => {
       return false;
     }
 
+    if (!referenceOptions.productTypes.includes(formData.productType)) {
+      setErrorMessage('Product type must be selected from Reference Data.');
+      return false;
+    }
+    if (!referenceOptions.currencies.includes(formData.currency)) {
+      setErrorMessage('Currency must be selected from Reference Data.');
+      return false;
+    }
+    if (!referenceOptions.dayCountConventions.includes(formData.dayCountConvention)) {
+      setErrorMessage('Day count must be selected from Reference Data.');
+      return false;
+    }
+    if (!referenceOptions.accrualFrequencies.includes(formData.accrualFrequency)) {
+      setErrorMessage('Accrual frequency must be selected from Reference Data.');
+      return false;
+    }
+    if (!referenceOptions.payoutFrequencies.includes(formData.payoutFrequency)) {
+      setErrorMessage('Payout frequency must be selected from Reference Data.');
+      return false;
+    }
+    if (!referenceOptions.compoundingTypes.includes(formData.compounding)) {
+      setErrorMessage('Compounding must be selected from Reference Data.');
+      return false;
+    }
+    if (!referenceOptions.roundingScales.includes(formData.roundingScale)) {
+      setErrorMessage('Rounding scale must be selected from Reference Data.');
+      return false;
+    }
+    if (!referenceOptions.roundingModes.includes(formData.roundingMode)) {
+      setErrorMessage('Rounding mode must be selected from Reference Data.');
+      return false;
+    }
+
     setErrorMessage('');
     return true;
   };
 
-  const buildProductPayload = (status: InterestApprovalState): Omit<InterestProduct, 'id'> => {
+  const buildProductPayload = (status: InterestApprovalState): Partial<Omit<InterestProduct, 'id'>> => {
     const nowIso = new Date().toISOString();
-    const basePayload: Omit<InterestProduct, 'id'> = {
+    const payload: any = {
       productCode: formData.productCode.trim().toUpperCase(),
       name: formData.name.trim(),
-      productType: formData.productType,
-      currency: formData.currency.trim().toUpperCase(),
-      dayCountConvention: formData.dayCountConvention,
-      accrualFrequency: formData.accrualFrequency,
-      payoutFrequency: formData.payoutFrequency,
-      compounding: formData.compounding,
+      productType: formData.productType as InterestProductType,
+      currency: formData.currency.trim(),
+      dayCountConvention: formData.dayCountConvention as DayCountConvention,
+      accrualFrequency: formData.accrualFrequency as AccrualFrequency,
+      payoutFrequency: formData.payoutFrequency as PayoutFrequency,
+      compounding: formData.compounding as CompoundingType,
       roundingScale: Number(formData.roundingScale),
       roundingMode: formData.roundingMode.trim() || 'HALF_UP',
       minimumBalance: Number(formData.minimumBalance || 0),
@@ -149,14 +296,48 @@ const InterestProductsManager: React.FC = () => {
       makerName: editingProduct?.makerName || currentUser?.name || 'Unknown User',
       makerEmail: editingProduct?.makerEmail || currentUser?.email || '',
       makerTimestamp: editingProduct?.makerTimestamp || nowIso,
-      checkerName: editingProduct?.checkerName,
-      checkerEmail: editingProduct?.checkerEmail,
-      checkerTimestamp: editingProduct?.checkerTimestamp,
       lastModifiedBy: currentUser?.email || 'usr_admin',
       lastModifiedAt: nowIso,
     };
 
-    return basePayload;
+    // Preserve checker fields if they exist during edit; omit if creating new product
+    if (editingProduct?.checkerName) payload.checkerName = editingProduct.checkerName;
+    if (editingProduct?.checkerEmail) payload.checkerEmail = editingProduct.checkerEmail;
+    if (editingProduct?.checkerTimestamp) payload.checkerTimestamp = editingProduct.checkerTimestamp;
+
+    // Remove any remaining undefined values to prevent Firebase errors
+    Object.keys(payload).forEach(key => {
+      if (payload[key] === undefined) delete payload[key];
+    });
+
+    return payload as Partial<Omit<InterestProduct, 'id'>>;
+  };
+
+  const syncProductSetupByCode = async (
+    payload: Partial<Omit<InterestProduct, 'id'>>,
+    previousProductCode?: string
+  ) => {
+    const productCodeKey = payload.productCode!.trim().toUpperCase();
+    const byCodePath = `banking/interestProductSetupByCode/${effectiveTenantId}/${productCodeKey}`;
+
+    if (previousProductCode && previousProductCode.trim().toUpperCase() !== productCodeKey) {
+      await remove(ref(db, `banking/interestProductSetupByCode/${effectiveTenantId}/${previousProductCode.trim().toUpperCase()}`));
+    }
+
+    await set(ref(db, byCodePath), {
+      productCode: productCodeKey,
+      productType: payload.productType,
+      currency: payload.currency,
+      dayCountConvention: payload.dayCountConvention,
+      accrualFrequency: payload.accrualFrequency,
+      payoutFrequency: payload.payoutFrequency,
+      compounding: payload.compounding,
+      roundingScale: payload.roundingScale,
+      roundingMode: payload.roundingMode,
+      tenantId: effectiveTenantId,
+      lastModifiedBy: payload.lastModifiedBy,
+      lastModifiedAt: payload.lastModifiedAt,
+    });
   };
 
   const saveProduct = async (targetStatus: InterestApprovalState) => {
@@ -174,6 +355,7 @@ const InterestProductsManager: React.FC = () => {
       if (editingProduct) {
         const productRef = ref(db, `banking/interestProducts/${editingProduct.id}`);
         await update(productRef, payload);
+        await syncProductSetupByCode(payload, editingProduct.productCode);
 
         const changes = calculateChanges(editingProduct as Record<string, any>, payload as Record<string, any>);
         await logAudit({
@@ -195,6 +377,7 @@ const InterestProductsManager: React.FC = () => {
         const productsRef = ref(db, 'banking/interestProducts');
         const newProductRef = push(productsRef);
         await set(newProductRef, payload);
+        await syncProductSetupByCode(payload);
 
         await logAudit({
           userId: currentUser.email,
@@ -229,7 +412,7 @@ const InterestProductsManager: React.FC = () => {
       if (event.key.toLowerCase() === 'n') {
         event.preventDefault();
         setEditingProduct(null);
-        setFormData(initialFormState);
+        resetForm();
         setErrorMessage('');
         return;
       }
@@ -293,6 +476,7 @@ const InterestProductsManager: React.FC = () => {
 
     try {
       await remove(ref(db, `banking/interestProducts/${product.id}`));
+      await remove(ref(db, `banking/interestProductSetupByCode/${effectiveTenantId}/${product.productCode.trim().toUpperCase()}`));
       await logAudit({
         userId: currentUser.email,
         userName: currentUser.name,
@@ -404,6 +588,15 @@ const InterestProductsManager: React.FC = () => {
 
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
         <h2 className="text-xl font-semibold text-gray-800 mb-4">Product Setup</h2>
+        {isLoadingReferenceData ? (
+          <div className="mb-4 px-3 py-2 rounded-lg bg-blue-50 text-blue-800 text-sm border border-blue-200">
+            Loading interest product reference options...
+          </div>
+        ) : missingReferenceFields.length > 0 ? (
+          <div className="mb-4 px-3 py-2 rounded-lg bg-amber-50 text-amber-800 text-sm border border-amber-200">
+            Missing reference values for: {missingReferenceFields.join(', ')}. Add them in Reference Data before saving products.
+          </div>
+        ) : null}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -422,52 +615,66 @@ const InterestProductsManager: React.FC = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Product Type</label>
             <select name="productType" value={formData.productType} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg px-3 py-2">
-              <option value="SAVINGS">SAVINGS</option>
-              <option value="TERM_DEPOSIT">TERM_DEPOSIT</option>
+              {referenceOptions.productTypes.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
-            <input name="currency" value={formData.currency} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg px-3 py-2" maxLength={3} />
+            <select name="currency" value={formData.currency} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg px-3 py-2">
+              {referenceOptions.currencies.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Day Count</label>
             <select name="dayCountConvention" value={formData.dayCountConvention} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg px-3 py-2">
-              <option value="ACT/365F">ACT/365F</option>
-              <option value="ACT/360">ACT/360</option>
-              <option value="30E/360">30E/360</option>
+              {referenceOptions.dayCountConventions.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Accrual Frequency</label>
             <select name="accrualFrequency" value={formData.accrualFrequency} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg px-3 py-2">
-              <option value="DAILY">DAILY</option>
-              <option value="MONTHLY">MONTHLY</option>
+              {referenceOptions.accrualFrequencies.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Payout Frequency</label>
             <select name="payoutFrequency" value={formData.payoutFrequency} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg px-3 py-2">
-              <option value="MONTHLY">MONTHLY</option>
-              <option value="QUARTERLY">QUARTERLY</option>
-              <option value="AT_MATURITY">AT_MATURITY</option>
+              {referenceOptions.payoutFrequencies.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Compounding</label>
             <select name="compounding" value={formData.compounding} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg px-3 py-2">
-              <option value="NONE">NONE</option>
-              <option value="DAILY">DAILY</option>
-              <option value="MONTHLY">MONTHLY</option>
+              {referenceOptions.compoundingTypes.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
             </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Rounding Scale</label>
-            <input type="number" name="roundingScale" value={formData.roundingScale} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg px-3 py-2" min={0} max={12} />
+            <select name="roundingScale" value={formData.roundingScale} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg px-3 py-2">
+              {referenceOptions.roundingScales.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Rounding Mode</label>
-            <input name="roundingMode" value={formData.roundingMode} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg px-3 py-2" maxLength={20} />
+            <select name="roundingMode" value={formData.roundingMode} onChange={handleInputChange} className="w-full border border-gray-300 rounded-lg px-3 py-2">
+              {referenceOptions.roundingModes.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Minimum Balance</label>

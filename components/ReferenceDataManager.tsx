@@ -12,11 +12,18 @@ const categoryToPath: Record<CategoryType, string> = {
   discountAmountTypes: 'referenceDiscountAmountTypes',
   badges: 'referenceBadges',
   loyaltyStamps: 'referenceLoyaltyStamps',
+  interestProductTypes: 'referenceInterestProductTypes',
+  interestCurrencies: 'referenceInterestCurrencies',
+  interestDayCountConventions: 'referenceInterestDayCountConventions',
+  interestAccrualFrequencies: 'referenceInterestAccrualFrequencies',
+  interestPayoutFrequencies: 'referenceInterestPayoutFrequencies',
+  interestCompoundingTypes: 'referenceInterestCompoundingTypes',
+  interestRoundingScales: 'referenceInterestRoundingScales',
+  interestRoundingModes: 'referenceInterestRoundingModes',
 };
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ref, onValue, push, update, remove } from 'firebase/database';
-import { set } from 'firebase/database';
+import { ref, onValue, push, update, remove, set, get } from 'firebase/database';
 import { db } from '../services/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { logAudit, calculateChanges } from '../services/auditService';
@@ -29,7 +36,28 @@ interface City {
   dateAdded: string;
   addedBy: string;
 }
-type CategoryType = 'countries' | 'currencies' | 'fxSegments' | 'serviceTypes' | 'zoneTypes' | 'companyTypes' | 'zones' | 'cities' | 'weatherConditions' | 'loyaltyTriggerEvents' | 'discountAmountTypes' | 'badges' | 'loyaltyStamps';
+type CategoryType =
+  | 'countries'
+  | 'currencies'
+  | 'fxSegments'
+  | 'serviceTypes'
+  | 'zoneTypes'
+  | 'companyTypes'
+  | 'zones'
+  | 'cities'
+  | 'weatherConditions'
+  | 'loyaltyTriggerEvents'
+  | 'discountAmountTypes'
+  | 'badges'
+  | 'loyaltyStamps'
+  | 'interestProductTypes'
+  | 'interestCurrencies'
+  | 'interestDayCountConventions'
+  | 'interestAccrualFrequencies'
+  | 'interestPayoutFrequencies'
+  | 'interestCompoundingTypes'
+  | 'interestRoundingScales'
+  | 'interestRoundingModes';
 interface ReferenceItem {
   id: string;
   name?: string;
@@ -40,6 +68,8 @@ interface ReferenceItem {
   population?: number;
   dateAdded?: string;
   addedBy?: string;
+  lastModifiedAt?: string;
+  lastModifiedBy?: string;
   // Loyalty Stamps fields
   stampIcon?: string;
   stampDescription?: string;
@@ -129,6 +159,107 @@ const categoryFields: Record<CategoryType, Array<{ key: keyof ReferenceItem, lab
     { key: 'expiryType', label: 'Expiry Type', required: true },
     { key: 'dateAdded', label: 'Date Added' },
   ],
+  interestProductTypes: [
+    { key: 'name', label: 'Product Type', required: true },
+    { key: 'description', label: 'Description' },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+  interestCurrencies: [
+    { key: 'name', label: 'Currency', required: true },
+    { key: 'description', label: 'Description' },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+  interestDayCountConventions: [
+    { key: 'name', label: 'Day Count', required: true },
+    { key: 'description', label: 'Description' },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+  interestAccrualFrequencies: [
+    { key: 'name', label: 'Accrual Frequency', required: true },
+    { key: 'description', label: 'Description' },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+  interestPayoutFrequencies: [
+    { key: 'name', label: 'Payout Frequency', required: true },
+    { key: 'description', label: 'Description' },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+  interestCompoundingTypes: [
+    { key: 'name', label: 'Compounding Type', required: true },
+    { key: 'description', label: 'Description' },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+  interestRoundingScales: [
+    { key: 'name', label: 'Rounding Scale', required: true },
+    { key: 'description', label: 'Description' },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+  interestRoundingModes: [
+    { key: 'name', label: 'Rounding Mode', required: true },
+    { key: 'description', label: 'Description' },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+};
+
+type InterestReferenceCategory =
+  | 'interestProductTypes'
+  | 'interestCurrencies'
+  | 'interestDayCountConventions'
+  | 'interestAccrualFrequencies'
+  | 'interestPayoutFrequencies'
+  | 'interestCompoundingTypes'
+  | 'interestRoundingScales'
+  | 'interestRoundingModes';
+
+const INTEREST_REFERENCE_SEEDS: Record<InterestReferenceCategory, Array<{ name: string; description?: string }>> = {
+  interestProductTypes: [
+    { name: 'SAVINGS', description: 'Savings product with ongoing availability.' },
+    { name: 'TERM_DEPOSIT', description: 'Fixed term deposit with maturity date.' },
+  ],
+  interestCurrencies: [
+    { name: 'EUR', description: 'Euro' },
+    { name: 'USD', description: 'US Dollar' },
+  ],
+  interestDayCountConventions: [
+    { name: 'ACT/365F', description: 'Actual days over fixed 365 denominator.' },
+    { name: 'ACT/360', description: 'Actual days over 360 denominator.' },
+    { name: '30E/360', description: '30E/360 banking day count method.' },
+  ],
+  interestAccrualFrequencies: [
+    { name: 'DAILY', description: 'Accrual posted daily.' },
+    { name: 'MONTHLY', description: 'Accrual posted monthly.' },
+  ],
+  interestPayoutFrequencies: [
+    { name: 'MONTHLY', description: 'Interest paid monthly.' },
+    { name: 'QUARTERLY', description: 'Interest paid quarterly.' },
+    { name: 'AT_MATURITY', description: 'Interest paid at maturity.' },
+  ],
+  interestCompoundingTypes: [
+    { name: 'NONE', description: 'No compounding.' },
+    { name: 'DAILY', description: 'Compound daily.' },
+    { name: 'MONTHLY', description: 'Compound monthly.' },
+  ],
+  interestRoundingScales: [
+    { name: '0', description: 'No decimal places.' },
+    { name: '2', description: 'Two decimal places.' },
+    { name: '4', description: 'Four decimal places.' },
+    { name: '6', description: 'Six decimal places.' },
+    { name: '8', description: 'Eight decimal places.' },
+  ],
+  interestRoundingModes: [
+    { name: 'HALF_UP', description: 'Round half away from zero.' },
+    { name: 'HALF_EVEN', description: 'Bankers rounding.' },
+    { name: 'DOWN', description: 'Round towards zero.' },
+    { name: 'UP', description: 'Round away from zero.' },
+  ],
 };
 
 
@@ -141,8 +272,103 @@ const ReferenceDataManager: React.FC = () => {
   const [countryOptions, setCountryOptions] = useState<string[]>([]);
   const [cityOptions, setCityOptions] = useState<string[]>([]);
   const [imagePreview, setImagePreview] = useState<string>('');
+  const [isSeedingInterestRefs, setIsSeedingInterestRefs] = useState(false);
   const { currentUser } = useAuth();
   const formRef = useRef<HTMLFormElement>(null);
+
+  const INTEREST_REFERENCE_CATEGORIES = [
+    'interestProductTypes',
+    'interestCurrencies',
+    'interestDayCountConventions',
+    'interestAccrualFrequencies',
+    'interestPayoutFrequencies',
+    'interestCompoundingTypes',
+    'interestRoundingScales',
+    'interestRoundingModes'
+  ] as const;
+
+  const isSystemManagedInterestField = (
+    targetCategory: CategoryType,
+    fieldKey: keyof ReferenceItem
+  ): boolean => {
+    return (INTEREST_REFERENCE_CATEGORIES as readonly string[]).includes(targetCategory) && 
+           (fieldKey === 'dateAdded' || fieldKey === 'addedBy');
+  };
+
+  const reseedInterestReferenceData = async () => {
+    if (isSeedingInterestRefs) return;
+
+    const confirmed = window.confirm(
+      'Reseed Interest Product setup reference data with defaults? Existing items are kept and duplicates are skipped.'
+    );
+    if (!confirmed) return;
+
+    setIsSeedingInterestRefs(true);
+    let addedCount = 0;
+
+    try {
+      const categories = Object.entries(INTEREST_REFERENCE_SEEDS) as Array<[
+        InterestReferenceCategory,
+        Array<{ name: string; description?: string }>
+      ]>;
+
+      for (const [interestCategory, defaults] of categories) {
+        const path = categoryToPath[interestCategory];
+        const pathRef = ref(db, path);
+        const snapshot = await get(pathRef);
+        const existingData = snapshot.val() || {};
+
+        const existingNames = new Set(
+          Object.values(existingData)
+            .map((row: any) => {
+              if (typeof row === 'string') return row.trim().toLowerCase();
+              return String(row?.name || row?.code || '').trim().toLowerCase();
+            })
+            .filter(Boolean)
+        );
+
+        for (const seed of defaults) {
+          const normalizedName = seed.name.trim().toLowerCase();
+          if (existingNames.has(normalizedName)) continue;
+
+          const newRef = push(pathRef);
+          const newId = newRef.key || '';
+          await set(newRef, {
+            id: newId,
+            name: seed.name,
+            description: seed.description || '',
+            dateAdded: new Date().toISOString(),
+            addedBy: currentUser?.email || 'Unknown',
+          });
+          existingNames.add(normalizedName);
+          addedCount += 1;
+        }
+      }
+
+      // Keep reseed responsive even if audit persistence is slow/unavailable.
+      await Promise.race([
+        logAudit({
+          action: 'create',
+          entityType: 'reference',
+          entityName: 'Interest Product Reference Defaults Reseed',
+          metadata: {
+            addedCount,
+          },
+          userId: currentUser?.email || 'unknown',
+          userName: currentUser?.email?.split('@')[0] || 'Unknown User',
+          userEmail: currentUser?.email || 'unknown',
+        }),
+        new Promise((resolve) => setTimeout(resolve, 4000)),
+      ]);
+
+      window.alert(`Interest Product reference reseed complete. Added ${addedCount} new entries.`);
+    } catch (error) {
+      console.error('Failed to reseed interest reference data:', error);
+      window.alert('Failed to reseed interest reference data.');
+    } finally {
+      setIsSeedingInterestRefs(false);
+    }
+  };
 
   useEffect(() => {
     const refPath = categoryToPath[category];
@@ -252,12 +478,29 @@ const ReferenceDataManager: React.FC = () => {
           <option value="loyaltyTriggerEvents">Loyalty Trigger Events</option>
           <option value="discountAmountTypes">Discount Amount Types</option>
           <option value="loyaltyStamps">Digital Loyalty Stamps</option>
+          <option value="interestProductTypes">Interest Product Types</option>
+          <option value="interestCurrencies">Interest Currencies</option>
+          <option value="interestDayCountConventions">Interest Day Count Conventions</option>
+          <option value="interestAccrualFrequencies">Interest Accrual Frequencies</option>
+          <option value="interestPayoutFrequencies">Interest Payout Frequencies</option>
+          <option value="interestCompoundingTypes">Interest Compounding Types</option>
+          <option value="interestRoundingScales">Interest Rounding Scales</option>
+          <option value="interestRoundingModes">Interest Rounding Modes</option>
         </select>
         <div className="mt-4">
           <div className="flex justify-between items-center mb-2">
             <div className="font-semibold">{categoryFields[category].map(f => f.label).join(' | ')}</div>
             <div className="flex gap-2">
               <button className="px-3 py-1 bg-blue-600 text-white rounded" onClick={() => { setShowForm(true); setEditingItem(null); setFormData({}); }}>Add</button>
+              <button
+                className="px-3 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-60"
+                disabled={isSeedingInterestRefs}
+                onClick={async () => {
+                  await reseedInterestReferenceData();
+                }}
+              >
+                {isSeedingInterestRefs ? 'Reseeding...' : 'Reseed Interest Defaults'}
+              </button>
               {category === 'countries' && (
                 <button
                   className="px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700"
@@ -508,11 +751,26 @@ const ReferenceDataManager: React.FC = () => {
                 e.preventDefault();
                 const refPath = categoryToPath[category];
                 const now = new Date().toISOString();
+                const auditMetadata = {
+                  category,
+                  timestamp: now,
+                  source: category === 'interestProductTypes' ? 'system-managed-reference' : 'reference-data-manager',
+                };
+
                 let baseData: ReferenceItem = {
                   ...formData,
                   dateAdded: editingItem ? (formData.dateAdded || now) : now,
                   addedBy: currentUser?.email || 'Unknown',
                 } as ReferenceItem;
+
+                // All interest reference types use system-managed user/date stamps.
+                if ((INTEREST_REFERENCE_CATEGORIES as readonly string[]).includes(category)) {
+                  baseData.dateAdded = editingItem?.dateAdded || now;
+                  baseData.addedBy = editingItem?.addedBy || currentUser?.email || 'Unknown';
+                  baseData.lastModifiedAt = now;
+                  baseData.lastModifiedBy = currentUser?.email || 'Unknown';
+                }
+
                 // For weatherConditions, sanitize all fields to strings
                 if (category === 'weatherConditions') {
                   Object.keys(baseData).forEach(key => {
@@ -525,20 +783,17 @@ const ReferenceDataManager: React.FC = () => {
                 if (editingItem) {
                   const changes = calculateChanges(editingItem, baseData);
                   await update(ref(db, `${refPath}/${editingItem.id}`), baseData);
-                  if (Object.keys(changes).length > 0) {
+                  if (changes.length > 0) {
                     await logAudit({
                       action: 'update',
                       entityType: 'reference',
                       entityId: editingItem.id,
                       entityName: `${category}: ${baseData.name}`,
-                      changes: Object.entries(changes).map(([field, { oldValue, newValue }]) => ({
-                        field,
-                        oldValue,
-                        newValue,
-                      })),
+                      changes,
                       userId: currentUser?.email || 'unknown',
                       userName: currentUser?.email?.split('@')[0] || 'Unknown User',
                       userEmail: currentUser?.email || 'unknown',
+                      metadata: auditMetadata,
                     });
                   }
                 } else {
@@ -558,6 +813,7 @@ const ReferenceDataManager: React.FC = () => {
                     userId: currentUser?.email || 'unknown',
                     userName: currentUser?.email?.split('@')[0] || 'Unknown User',
                     userEmail: currentUser?.email || 'unknown',
+                    metadata: auditMetadata,
                   });
                 }
                 setShowForm(false);
@@ -737,6 +993,9 @@ const ReferenceDataManager: React.FC = () => {
                 ) : (
                   <>
                     {categoryFields[category].map(field => {
+                      if (isSystemManagedInterestField(category, field.key)) {
+                        return null;
+                      }
                       // Country dropdown for cities and weatherConditions
                       if ((category === 'cities' || category === 'weatherConditions') && field.key === 'country') {
                         return (

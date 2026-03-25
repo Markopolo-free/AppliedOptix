@@ -37,6 +37,7 @@ const baseAssignment = (overrides: Partial<InterestAssignment> = {}): InterestAs
   productId: 'prod-1',
   productCode: 'SAV001',
   productName: 'Savings Basic',
+  startDate: '2026-03-01',
   status: 'Approved',
   tenantId: 'tenant-1',
   lastModifiedBy: 'tester',
@@ -94,6 +95,24 @@ describe('interestCalculatorService', () => {
 
     expect(resolveTierRate(tiers, 1000, '2026-03-08')).toBe(8);
     expect(resolveTierRate(tiers, 1000, '2026-04-01')).toBe(5);
+  });
+
+  it('includes the exact upper bound when no adjacent tier starts there', () => {
+    const tiers: InterestRateTier[] = [
+      baseTier({ annualRatePercent: 5, tierFromAmount: 0, tierToAmount: 10000 }),
+    ];
+
+    expect(resolveTierRate(tiers, 10000, '2026-03-25')).toBe(5);
+  });
+
+  it('prefers the next tier when principal hits a shared boundary', () => {
+    const tiers: InterestRateTier[] = [
+      baseTier({ id: 'tier-1', annualRatePercent: 5, tierFromAmount: 0, tierToAmount: 10000 }),
+      baseTier({ id: 'tier-2', annualRatePercent: 7, tierFromAmount: 10000, tierToAmount: 50000 }),
+    ];
+
+    expect(resolveTierRate(tiers, 9999.99, '2026-03-25')).toBe(5);
+    expect(resolveTierRate(tiers, 10000, '2026-03-25')).toBe(7);
   });
 
   it('calculates deterministic preview with daily compounding', () => {
@@ -210,5 +229,32 @@ describe('interestCalculatorService', () => {
 
     expect(preview.result).toBeUndefined();
     expect(preview.error).toContain('No approved rate book found');
+  });
+
+  it('applies the configured tier rate when principal equals the tier upper bound', () => {
+    const product = baseProduct({
+      compounding: 'NONE',
+      dayCountConvention: 'ACT/365F',
+      roundingScale: 6,
+    });
+    const assignment = baseAssignment();
+    const rateBook = baseRateBook([
+      baseTier({ annualRatePercent: 5, tierFromAmount: 0, tierToAmount: 10000 }),
+    ]);
+
+    const preview = calculateInterestPreview({
+      assignment,
+      product,
+      rateBooks: [rateBook],
+      principalStart: 10000,
+      startDateIso: '2026-03-25',
+      endDateIso: '2026-03-25',
+    });
+
+    expect(preview.error).toBeUndefined();
+    expect(preview.result).toBeDefined();
+    expect(preview.result?.annualNominalRate).toBe(5);
+    expect(preview.result?.trace[0].appliedRate).toBe(5);
+    expect(preview.result?.totalInterest).toBeCloseTo(1.369863, 6);
   });
 });

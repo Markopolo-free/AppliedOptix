@@ -30,6 +30,10 @@ interface CalcResult {
   trace: TraceRow[];
 }
 
+const normalizeLookupValue = (value?: string): string => {
+  return String(value || '').trim().toLowerCase();
+};
+
 const InterestCalculatorManager: React.FC = () => {
   const { currentUser, effectiveTenantId } = useAuth();
 
@@ -75,17 +79,52 @@ const InterestCalculatorManager: React.FC = () => {
   }, [loadData]);
 
   const filteredAssignments = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
+    const term = normalizeLookupValue(searchTerm);
     if (!term) return assignments;
+
     return assignments.filter((item) => {
       return (
-        item.accountId.toLowerCase().includes(term) ||
-        (item.customerId || '').toLowerCase().includes(term) ||
-        item.productCode.toLowerCase().includes(term) ||
-        (item.rateBookCode || '').toLowerCase().includes(term)
+        normalizeLookupValue(item.accountId).includes(term) ||
+        normalizeLookupValue(item.customerId).includes(term) ||
+        normalizeLookupValue(item.productCode).includes(term) ||
+        normalizeLookupValue(item.rateBookCode).includes(term)
       );
     });
   }, [assignments, searchTerm]);
+
+  const matchedAssignment = useMemo(() => {
+    const term = normalizeLookupValue(searchTerm);
+    if (!term) return null;
+
+    const exactMatches = filteredAssignments.filter((item) => {
+      return [item.accountId, item.customerId, item.productCode, item.rateBookCode].some(
+        (value) => normalizeLookupValue(value) === term
+      );
+    });
+
+    if (exactMatches.length === 1) {
+      return exactMatches[0];
+    }
+
+    if (filteredAssignments.length === 1) {
+      return filteredAssignments[0];
+    }
+
+    return null;
+  }, [filteredAssignments, searchTerm]);
+
+  useEffect(() => {
+    if (!searchTerm.trim()) return;
+
+    if (matchedAssignment && selectedAssignmentId !== matchedAssignment.id) {
+      setSelectedAssignmentId(matchedAssignment.id);
+      return;
+    }
+
+    if (selectedAssignmentId && !filteredAssignments.some((item) => item.id === selectedAssignmentId)) {
+      setSelectedAssignmentId('');
+    }
+  }, [filteredAssignments, matchedAssignment, searchTerm, selectedAssignmentId]);
 
   const runCalculation = useCallback(async () => {
     setErrorMessage('');
@@ -276,6 +315,16 @@ const InterestCalculatorManager: React.FC = () => {
                 </option>
               ))}
             </select>
+            {searchTerm.trim() && matchedAssignment && (
+              <p className="mt-2 text-sm text-green-700">
+                Matched assignment for account {matchedAssignment.accountId} using {matchedAssignment.rateBookCode || 'automatic rate-book resolution'}.
+              </p>
+            )}
+            {searchTerm.trim() && !matchedAssignment && filteredAssignments.length === 0 && (
+              <p className="mt-2 text-sm text-amber-700">
+                No approved assignment matches this search for the current tenant.
+              </p>
+            )}
           </div>
         </div>
 
