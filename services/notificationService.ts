@@ -148,7 +148,10 @@ export const isNotificationSupported = async (): Promise<boolean> => {
 };
 
 export const getNotificationPermissionStatus = (): NotificationPermission => {
-  return Notification.permission;
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return 'denied';
+  }
+  return window.Notification.permission;
 };
 
 export const saveTokenToDatabase = async (token: string, userEmail?: string) => {
