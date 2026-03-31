@@ -13,4 +13,5 @@ export const BANKING_INTEREST_MVP_VIEWS = [
   'interestResults',
   'interestReconciliation',
   'interestAudit',
+  'ebppCampaigns',
 ] as const;

@@ -50,6 +50,7 @@ const InterestCalculatorManager = lazy(() => import('./components/InterestCalcul
 const InterestResultsManager = lazy(() => import('./components/InterestResultsManager'));
 const InterestReconciliationManager = lazy(() => import('./components/InterestReconciliationManager'));
 const InterestAuditManager = lazy(() => import('./components/InterestAuditManager'));
+const EBPPCampaignManager = lazy(() => import('./components/EBPPCampaignManager'));
 
 // View type now imported from types.ts
 
@@ -157,6 +158,8 @@ const App: React.FC = () => {
         return bankingInterestMvpEnabled ? <InterestReconciliationManager /> : <Dashboard />;
       case 'interestAudit':
         return bankingInterestMvpEnabled ? <InterestAuditManager /> : <Dashboard />;
+      case 'ebppCampaigns':
+        return bankingInterestMvpEnabled ? <EBPPCampaignManager /> : <Dashboard />;
       default:
         return <Dashboard />;
     }

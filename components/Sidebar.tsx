@@ -132,6 +132,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView, isSideba
     { view: 'interestResults', label: '📈 Interest Results', icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 3v18h16M9 17l3-3 2 2 4-5" /></svg> },
     { view: 'interestReconciliation', label: '🧾 Interest Reconciliation', icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 14l2 2 4-4m7 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
     { view: 'interestAudit', label: '🛡️ Interest Audit Trail', icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3l7 4v5c0 5-3.5 8-7 9-3.5-1-7-4-7-9V7l7-4zm0 5v4m0 4h.01" /></svg> },
+    { view: 'ebppCampaigns', label: '📧 EBPP Campaigns', icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg> },
   ] as const;
 
   const isBankingMvpView = (view: View): boolean => {

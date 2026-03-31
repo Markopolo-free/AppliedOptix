@@ -45,7 +45,8 @@ export type View =
     | 'interestCalculator'
     | 'interestResults'
     | 'interestReconciliation'
-    | 'interestAudit';  // Visual menu configuration tool
+    | 'interestAudit'
+    | 'ebppCampaigns';  // EBPP campaign management
 
 // Domain to View mapping - controls which views appear in each domain's sidebar
 // SECURITY: This is UI-level filtering only. Database-level access control MUST be enforced separately.
