@@ -205,7 +205,10 @@ const EBPPCampaignManager: React.FC = () => {
   }, [fetchCampaigns]);
 
   useEffect(() => {
+    // When in create mode and switching to a multi-tier cash-back type,
+    // always seed 4 suggested tier rows so the matrix is immediately visible.
     if (!supportsMultiplePercentages) return;
+    if (editingCampaign) return; // editing: tiers already loaded from the saved campaign
 
     setTiers((prev) => {
       if (prev.length >= 4) return prev;
@@ -216,7 +219,10 @@ const EBPPCampaignManager: React.FC = () => {
       }
       return next;
     });
-  }, [supportsMultiplePercentages]);
+  // Depend on the raw cashBackType so this fires on every type change,
+  // not just on the false→true transition of the derived boolean.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.cashBackType]);
 
   // Keyboard shortcuts
   useEffect(() => {
