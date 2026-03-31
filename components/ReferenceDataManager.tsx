@@ -466,9 +466,9 @@ const ReferenceDataManager: React.FC = () => {
     }
 
     return String(item.name || item.code || '').trim().toLowerCase();
-
-    const activeCategoryGroupLabel = getCategoryGroupLabel(category);
   };
+
+  const activeCategoryGroupLabel = getCategoryGroupLabel(category);
 
   const reseedInterestReferenceData = async () => {
     if (isSeedingInterestRefs) return;
