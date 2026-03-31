@@ -112,6 +112,17 @@ const createSuggestedTier = (index: number): EBPPCampaignTier => {
   };
 };
 
+const STREAK_PERIOD_LABELS = ['Month 3', 'Month 6', 'Month 9'] as const;
+
+const defaultStreakValue = (tierIndex: number, periodIndex: number): number => {
+  const baseByPeriod = [1.05, 1.1, 1.15];
+  return Number((baseByPeriod[periodIndex] + tierIndex * 0.05).toFixed(2));
+};
+
+const streakIdFromLabel = (label: string): string => {
+  return `streak-${label.toLowerCase().replace(/\s+/g, '-')}`;
+};
+
 const EBPPCampaignManager: React.FC = () => {
   const { currentUser, effectiveTenantId } = useAuth();
 
@@ -251,14 +262,6 @@ const EBPPCampaignManager: React.FC = () => {
     );
   };
 
-  const addStreakMultiplier = () => {
-    setStreakMultipliers((prev) => [...prev, newStreakMultiplier(tiers.length)]);
-  };
-
-  const removeStreakMultiplier = (streakId: string) => {
-    setStreakMultipliers((prev) => prev.filter((s) => s.id !== streakId));
-  };
-
   const updateStreakMultiplier = (streakId: string, tierIdOrLabel: string, value: string | number) => {
     setStreakMultipliers((prev) =>
       prev.map((s) => {
@@ -276,6 +279,37 @@ const EBPPCampaignManager: React.FC = () => {
       })
     );
   };
+
+  const getStreakValue = (periodLabel: string, tierIndex: number, periodIndex: number): number => {
+    const row = streakMultipliers.find((item) => item.periodLabel === periodLabel);
+    const stored = row?.multipliers?.[`tier-${tierIndex}`];
+    return Number.isFinite(stored) ? Number(stored) : defaultStreakValue(tierIndex, periodIndex);
+  };
+
+  useEffect(() => {
+    if (formData.cashBackType !== 'Percentage On Bill - Increasing') return;
+
+    setStreakMultipliers((prev) => {
+      return STREAK_PERIOD_LABELS.map((label, periodIndex) => {
+        const existing = prev.find((item) => item.periodLabel === label) || prev[periodIndex];
+        const multipliers: Record<string, number> = {};
+
+        for (let tierIndex = 0; tierIndex < tiers.length; tierIndex += 1) {
+          const key = `tier-${tierIndex}`;
+          const existingValue = existing?.multipliers?.[key];
+          multipliers[key] = Number.isFinite(existingValue)
+            ? Number(existingValue)
+            : defaultStreakValue(tierIndex, periodIndex);
+        }
+
+        return {
+          id: existing?.id || streakIdFromLabel(label),
+          periodLabel: label,
+          multipliers,
+        };
+      });
+    });
+  }, [formData.cashBackType, tiers.length]);
 
   const saveCampaign = async (targetStatus: ApprovalStatus.Draft | ApprovalStatus.Pending) => {
     if (!isMaker) {
@@ -636,12 +670,12 @@ const EBPPCampaignManager: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Tiered Pay-outs Per Bill</label>
               <select
-                value={String(formData.isTieredPayouts)}
-                onChange={(e) => setFormData({ ...formData, isTieredPayouts: e.target.value === 'true' })}
+                value={formData.isTieredPayouts ? 'yes' : 'no'}
+                onChange={(e) => setFormData({ ...formData, isTieredPayouts: e.target.value === 'yes' })}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2"
               >
-                <option value="false">FALSE</option>
-                <option value="true">TRUE</option>
+                <option value="no">NO</option>
+                <option value="yes">YES</option>
               </select>
             </div>
 
@@ -652,12 +686,12 @@ const EBPPCampaignManager: React.FC = () => {
                 </label>
                 <div className="space-y-2 border border-gray-200 rounded-lg p-3 bg-gray-50">
                   {tiers.map((tier, idx) => (
-                    <div key={tier.id} className="flex gap-2 mb-2">
+                    <div key={tier.id} className="flex items-center gap-2 mb-2">
                       <input
                         type="number"
                         value={tier.billCycleAmountFrom}
                         onChange={(e) => updateTier(tier.id, 'billCycleAmountFrom', e.target.value)}
-                        className="w-20 border border-gray-300 rounded px-2 py-1 text-sm"
+                        className="w-24 border border-gray-300 rounded px-2 py-1 text-sm"
                         placeholder="From"
                       />
                       <span className="text-gray-500 pt-1">–</span>
@@ -673,15 +707,18 @@ const EBPPCampaignManager: React.FC = () => {
                         step="0.1"
                         value={tier.cashBackMultiplier}
                         onChange={(e) => updateTier(tier.id, 'cashBackMultiplier', e.target.value)}
-                        className="flex-1 border border-gray-300 rounded px-2 py-1 text-sm"
+                        className="w-16 border border-gray-300 rounded px-2 py-1 text-sm"
                         placeholder="Multiplier %"
                       />
                       {tiers.length > 1 && (
                         <button
                           onClick={() => removeTier(tier.id)}
-                          className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded hover:bg-red-200"
+                          type="button"
+                          aria-label={`Delete tier row ${idx + 1}`}
+                          title="Delete row"
+                          className="w-7 h-7 ml-2 flex items-center justify-center bg-red-100 text-red-700 text-sm font-semibold rounded hover:bg-red-200"
                         >
-                          Remove
+                          X
                         </button>
                       )}
                     </div>
@@ -828,36 +865,36 @@ const EBPPCampaignManager: React.FC = () => {
 
             {formData.cashBackType === 'Percentage On Bill - Increasing' && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Streak Multipliers</label>
-                <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
-                  {streakMultipliers.map((streak) => (
-                    <div key={streak.id} className="mb-3 pb-3 border-b border-gray-200">
-                      <input
-                        type="text"
-                        value={streak.periodLabel}
-                        onChange={(e) => updateStreakMultiplier(streak.id, 'periodLabel', e.target.value)}
-                        className="w-full border border-gray-300 rounded px-2 py-1 text-sm mb-2"
-                      />
-                      {tiers.map((_, tierIdx) => (
-                        <div key={tierIdx} className="flex gap-1 mb-1">
-                          <span className="text-xs text-gray-500 pt-1 w-12">Tier {tierIdx + 1}:</span>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={streak.multipliers[`tier-${tierIdx}`] || 1.0}
-                            onChange={(e) => updateStreakMultiplier(streak.id, `tier-${tierIdx}`, e.target.value)}
-                            className="flex-1 border border-gray-300 rounded px-2 py-1 text-sm"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                  <button
-                    onClick={addStreakMultiplier}
-                    className="w-full mt-2 px-3 py-2 bg-blue-100 text-blue-700 text-sm rounded hover:bg-blue-200"
-                  >
-                    + Add Streak Period
-                  </button>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Streak Multipliers Per Period</label>
+                <div className="border border-gray-200 rounded-xl p-3 bg-gray-50">
+                  <div className="grid grid-cols-3 gap-3 mb-2 text-center text-sm font-medium text-gray-700">
+                    {STREAK_PERIOD_LABELS.map((label) => (
+                      <div key={label}>{label}</div>
+                    ))}
+                  </div>
+
+                  <div className="space-y-2">
+                    {tiers.map((tier, tierIdx) => (
+                      <div key={tier.id} className="grid grid-cols-3 gap-3">
+                        {STREAK_PERIOD_LABELS.map((label, periodIdx) => {
+                          const streak = streakMultipliers.find((item) => item.periodLabel === label);
+                          return (
+                            <input
+                              key={`${label}-${tier.id}`}
+                              type="number"
+                              step="0.01"
+                              value={getStreakValue(label, tierIdx, periodIdx)}
+                              onChange={(e) => {
+                                if (!streak) return;
+                                updateStreakMultiplier(streak.id, `tier-${tierIdx}`, e.target.value);
+                              }}
+                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                            />
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
