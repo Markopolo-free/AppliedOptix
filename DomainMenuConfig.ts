@@ -69,6 +69,7 @@ export const AVAILABLE_VIEWS = {
   interestResults: 'Interest Results - Accrual and payout outputs',
   interestReconciliation: 'Interest Reconciliation - Variance and exceptions',
   interestAudit: 'Interest Audit Trail - Auditable lifecycle history',
+  ebppCampaigns: 'EBPP Campaigns - Electronic bill presentment and payment incentives',
 } as const;
 
 // ============================================================================
@@ -188,6 +189,7 @@ export const DOMAIN_MENU_CONFIG: Record<ProductDomain, DomainMenuConfig> = {
       'interestResults',
       'interestReconciliation',
       'interestAudit',
+      'ebppCampaigns',
       
       // Optional: Add more features as needed
       // 'pricing',        // Uncomment to add Pricing Rules

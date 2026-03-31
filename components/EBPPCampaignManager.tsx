@@ -84,6 +84,17 @@ const initialFormState = {
   campaignOperationsDescription: '',
 };
 
+const getDefaultOperationsDescription = () => {
+  return 'Offer allows customers who pay their bill on or before due date, via EBPP (the system) to enjoy a scaled reward. For each bill increment (see details) customers will receive a discount payout at the end of month. See Terms & Conditions';
+};
+
+const createDefaultTier = (): EBPPCampaignTier => ({
+  ...newTier(),
+  billCycleAmountFrom: 0,
+  billCycleAmountTo: null,
+  cashBackMultiplier: 1.5,
+});
+
 const EBPPCampaignManager: React.FC = () => {
   const { currentUser, effectiveTenantId } = useAuth();
 
@@ -91,8 +102,11 @@ const EBPPCampaignManager: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [formData, setFormData] = useState(initialFormState);
-  const [tiers, setTiers] = useState<EBPPCampaignTier[]>([newTier()]);
+  const [formData, setFormData] = useState({
+    ...initialFormState,
+    campaignOperationsDescription: getDefaultOperationsDescription(),
+  });
+  const [tiers, setTiers] = useState<EBPPCampaignTier[]>([createDefaultTier()]);
   const [streakMultipliers, setStreakMultipliers] = useState<EBPPStreakMultiplier[]>([]);
   const [editingCampaign, setEditingCampaign] = useState<EBPPCampaign | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
@@ -144,16 +158,16 @@ const EBPPCampaignManager: React.FC = () => {
       }
       if (event.altKey && event.key === 's') {
         event.preventDefault();
-        saveDraft();
+        void saveCampaign(ApprovalStatus.Draft);
       }
       if (event.altKey && event.key === 'p') {
         event.preventDefault();
-        submitForApproval();
+        void submitForApproval();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [formData, tiers, streakMultipliers, editingCampaign]);
+  }, [editingCampaign, formData, tiers, streakMultipliers]);
 
   const filteredCampaigns = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -169,8 +183,11 @@ const EBPPCampaignManager: React.FC = () => {
 
   const resetForm = () => {
     setEditingCampaign(null);
-    setFormData(initialFormState);
-    setTiers([newTier()]);
+    setFormData({
+      ...initialFormState,
+      campaignOperationsDescription: getDefaultOperationsDescription(),
+    });
+    setTiers([createDefaultTier()]);
     setStreakMultipliers([]);
     setErrorMessage('');
     setSuccessMessage('');
@@ -225,7 +242,7 @@ const EBPPCampaignManager: React.FC = () => {
     );
   };
 
-  const saveDraft = async () => {
+  const saveCampaign = async (targetStatus: ApprovalStatus.Draft | ApprovalStatus.Pending) => {
     if (!isMaker) {
       setErrorMessage('Only Maker or Administrator can save campaigns.');
       return;
@@ -243,6 +260,15 @@ const EBPPCampaignManager: React.FC = () => {
     setIsSaving(true);
     try {
       const now = new Date().toISOString();
+      const normalizedTiers = formData.isTieredPayouts
+        ? tiers
+        : [
+            {
+              ...(tiers[0] || createDefaultTier()),
+              billCycleAmountFrom: 0,
+              billCycleAmountTo: null,
+            },
+          ];
       const payload: Partial<EBPPCampaign> = {
         tenantId: effectiveTenantId,
         campaignCode: formData.campaignCode,
@@ -252,30 +278,33 @@ const EBPPCampaignManager: React.FC = () => {
         payoutCurrency: formData.payoutCurrency,
         percentageOnBill: formData.percentageOnBill,
         isTieredPayouts: formData.isTieredPayouts,
-        tiers: tiers,
+        tiers: normalizedTiers,
         streakMultipliers: formData.cashBackType === 'Percentage On Bill - Increasing' ? streakMultipliers : [],
-        hasStreakMultipliers: streakMultipliers.length > 0,
+        hasStreakMultipliers: formData.cashBackType === 'Percentage On Bill - Increasing' && streakMultipliers.length > 0,
         startDate: formData.startDate,
         endDate: formData.endDate,
         capMonthlyPayout: formData.capMonthlyPayout,
         monthlyPayoutCap: formData.monthlyPayoutCap,
         accountRestrictions: formData.accountRestrictions,
         campaignOperationsDescription: formData.campaignOperationsDescription,
+        status: targetStatus,
         updatedBy: currentUser?.email || '',
         updatedAt: now,
         version: (editingCampaign?.version || 0) + 1,
       };
 
       if (!editingCampaign) {
-        payload.status = ApprovalStatus.Draft;
         payload.createdAt = now;
         payload.createdBy = currentUser?.email || '';
         const newRef = push(ref(db, `ebpp/campaigns`));
         await set(newRef, payload);
-        setSuccessMessage('Campaign saved as draft.');
+        setSuccessMessage(targetStatus === ApprovalStatus.Pending ? 'Campaign submitted for approval.' : 'Campaign saved as draft.');
       } else {
+        if (editingCampaign.checkerName) payload.checkerName = editingCampaign.checkerName;
+        if (editingCampaign.checkerEmail) payload.checkerEmail = editingCampaign.checkerEmail;
+        if (editingCampaign.checkerTimestamp) payload.checkerTimestamp = editingCampaign.checkerTimestamp;
         await update(ref(db, `ebpp/campaigns/${editingCampaign.id}`), payload);
-        setSuccessMessage('Campaign updated.');
+        setSuccessMessage(targetStatus === ApprovalStatus.Pending ? 'Campaign updated and submitted for approval.' : 'Campaign draft updated.');
       }
 
       if (currentUser) {
@@ -284,10 +313,16 @@ const EBPPCampaignManager: React.FC = () => {
           userName: currentUser.name,
           userEmail: currentUser.email,
           action: editingCampaign ? 'update' : 'create',
-          entityType: 'ebpp-campaign',
+          entityType: 'campaign',
           entityId: editingCampaign?.id || '',
           entityName: formData.campaignCode,
-          metadata: { tenantId: effectiveTenantId, campaignName: formData.campaignName },
+          metadata: {
+            tenantId: effectiveTenantId,
+            campaignName: formData.campaignName,
+            operation: targetStatus === ApprovalStatus.Pending ? 'submit-for-approval' : 'save-draft',
+            previousStatus: editingCampaign?.status || null,
+            newStatus: targetStatus,
+          },
         }).catch((e) => console.warn('Audit log failed:', e));
       }
 
@@ -302,46 +337,7 @@ const EBPPCampaignManager: React.FC = () => {
   };
 
   const submitForApproval = async () => {
-    if (!isMaker) {
-      setErrorMessage('Only Maker or Administrator can submit campaigns.');
-      return;
-    }
-    if (!editingCampaign || editingCampaign.status !== ApprovalStatus.Draft) {
-      setErrorMessage('Only Draft campaigns can be submitted for approval.');
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      const now = new Date().toISOString();
-      await update(ref(db, `ebpp/campaigns/${editingCampaign.id}`), {
-        status: ApprovalStatus.Pending,
-        updatedBy: currentUser?.email || '',
-        updatedAt: now,
-      });
-
-      if (currentUser) {
-        await logAudit({
-          userId: currentUser.email,
-          userName: currentUser.name,
-          userEmail: currentUser.email,
-          action: 'submit',
-          entityType: 'campaign',
-          entityId: editingCampaign.id,
-          entityName: editingCampaign.campaignCode,
-          metadata: { tenantId: effectiveTenantId },
-        }).catch((e) => console.warn('Audit log failed:', e));
-      }
-
-      setSuccessMessage('Campaign submitted for approval.');
-      await fetchCampaigns();
-      resetForm();
-    } catch (error) {
-      console.error('Submit failed:', error);
-      setErrorMessage('Failed to submit campaign.');
-    } finally {
-      setIsSaving(false);
-    }
+    await saveCampaign(ApprovalStatus.Pending);
   };
 
   const approveCampaign = async (campaign: EBPPCampaign) => {
@@ -489,10 +485,12 @@ const EBPPCampaignManager: React.FC = () => {
       startDate: campaign.startDate,
       endDate: campaign.endDate,
       accountRestrictions: campaign.accountRestrictions,
-      campaignOperationsDescription: campaign.campaignOperationsDescription,
+      campaignOperationsDescription: campaign.campaignOperationsDescription || getDefaultOperationsDescription(),
     });
-    setTiers(campaign.tiers || [newTier()]);
+    setTiers(campaign.tiers && campaign.tiers.length > 0 ? campaign.tiers : [createDefaultTier()]);
     setStreakMultipliers(campaign.streakMultipliers || []);
+    setErrorMessage('');
+    setSuccessMessage('');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -555,7 +553,21 @@ const EBPPCampaignManager: React.FC = () => {
 
       {/* Campaign Form */}
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">Campaign Details</h2>
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-800">{editingCampaign ? 'Edit Campaign' : 'Campaign Details'}</h2>
+            {editingCampaign && (
+              <p className="text-sm text-gray-600 mt-1">
+                Editing {editingCampaign.campaignCode} currently in {editingCampaign.status} status.
+              </p>
+            )}
+          </div>
+          {editingCampaign && (
+            <span className={`px-3 py-1 rounded text-xs font-medium ${getStatusBadgeClass(editingCampaign.status)}`}>
+              {editingCampaign.status}
+            </span>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Left Column */}
@@ -653,8 +665,21 @@ const EBPPCampaignManager: React.FC = () => {
                 <input
                   type="number"
                   step="0.1"
-                  value={1.5}
-                  onChange={() => {}}
+                  value={tiers[0]?.cashBackMultiplier ?? 1.5}
+                  onChange={(e) => {
+                    const nextValue = Number(e.target.value);
+                    setTiers((prev) => {
+                      const firstTier = prev[0] || createDefaultTier();
+                      return [
+                        {
+                          ...firstTier,
+                          billCycleAmountFrom: 0,
+                          billCycleAmountTo: null,
+                          cashBackMultiplier: Number.isFinite(nextValue) ? nextValue : firstTier.cashBackMultiplier,
+                        },
+                      ];
+                    });
+                  }}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
                   placeholder="e.g., 1.5"
                 />
@@ -822,38 +847,27 @@ const EBPPCampaignManager: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, campaignOperationsDescription: e.target.value })}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 h-32 text-sm resize-none"
                 placeholder="Offer details and terms..."
-                defaultValue="Offer allows customers who pay their bill on or before due date, via EBPP (the system) to enjoy a scaled reward. For each bill increment (see details) customers will receive a discount payout at the end of month. See Terms & Conditions"
               />
             </div>
-
-            {editingCampaign && (
-              <div className="pt-4 border-t border-gray-200">
-                <p className="text-xs text-gray-500 mb-2">
-                  <strong>Status:</strong> {editingCampaign.status}
-                </p>
-              </div>
-            )}
           </div>
         </div>
 
         {/* Action Buttons */}
         <div className="mt-6 flex gap-2">
           <button
-            onClick={saveDraft}
+            onClick={() => void saveCampaign(ApprovalStatus.Draft)}
             disabled={isSaving}
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium disabled:opacity-50"
           >
-            Save Draft (Alt+S)
+            {editingCampaign ? 'Update Draft' : 'Save Draft'} (Alt+S)
           </button>
-          {editingCampaign && editingCampaign.status === ApprovalStatus.Draft && (
-            <button
-              onClick={submitForApproval}
-              disabled={isSaving}
-              className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 font-medium disabled:opacity-50"
-            >
-              Submit for Approval (Alt+P)
-            </button>
-          )}
+          <button
+            onClick={() => void submitForApproval()}
+            disabled={isSaving}
+            className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 font-medium disabled:opacity-50"
+          >
+            Submit for Approval (Alt+P)
+          </button>
           <button
             onClick={resetForm}
             disabled={isSaving}
@@ -895,10 +909,10 @@ const EBPPCampaignManager: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-3 py-2 space-x-1">
-                      {campaign.status === ApprovalStatus.Draft && isMaker && (
+                      {isMaker && (
                         <button
                           onClick={() => editCampaign(campaign)}
-                          className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded hover:bg-gray-300"
+                          className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
                         >
                           Edit
                         </button>

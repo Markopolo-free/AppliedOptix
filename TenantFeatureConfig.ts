@@ -63,6 +63,7 @@ export const AVAILABLE_VIEWS = {
   interestResults: 'Interest Results - Accrual and payout outputs',
   interestReconciliation: 'Interest Reconciliation - Variance and exceptions',
   interestAudit: 'Interest Audit Trail - Auditable lifecycle history',
+  ebppCampaigns: 'EBPP Campaigns - Electronic bill presentment and payment incentives',
 } as const;
 
 // ============================================================================
@@ -148,6 +149,7 @@ export const TENANT_FEATURE_MAP: Record<string, TenantFeatureConfig> = {
       'interestResults',
       'interestReconciliation',
       'interestAudit',
+      'ebppCampaigns',
       // Admin tools
       'users',
       'companyDetails',
