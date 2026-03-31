@@ -345,10 +345,10 @@ const EBPP_REFERENCE_SEEDS: Record<EBPPReferenceCategory, Array<{ name: string; 
     { name: 'Discount', description: 'Discount applied to future bills.' },
   ],
   ebppCashBackTypes: [
-    { name: 'Flat', description: 'Fixed cash back amount.' },
-    { name: 'Tiered', description: 'Cash back varies by tier.' },
     { name: 'Percentage On Bill', description: 'Percentage of the bill amount.' },
     { name: 'Percentage On Bill - Increasing', description: 'Increasing percentage with streak multipliers.' },
+    { name: 'Tiered', description: 'Cash back varies by tier.' },
+    { name: 'Flat', description: 'Fixed cash back amount.' },
   ],
   ebppPayoutCurrencies: [
     { name: 'USD', description: 'US Dollar' },

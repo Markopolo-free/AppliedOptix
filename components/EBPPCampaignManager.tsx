@@ -72,7 +72,7 @@ const initialFormState = {
   campaignCode: '',
   campaignName: '',
   rewardType: 'Cash Back',
-  cashBackType: 'Flat',
+  cashBackType: 'Percentage On Bill',
   payoutCurrency: 'USD',
   percentageOnBill: 'Month End',
   isTieredPayouts: false,
@@ -142,7 +142,7 @@ const EBPPCampaignManager: React.FC = () => {
 
   // Reference data options loaded from Firebase
   const [rewardTypeOptions, setRewardTypeOptions] = useState<string[]>(['Cash Back', 'Points', 'Discount']);
-  const [cashBackTypeOptions, setCashBackTypeOptions] = useState<string[]>(['Flat', 'Tiered', 'Percentage On Bill', 'Percentage On Bill - Increasing']);
+  const [cashBackTypeOptions, setCashBackTypeOptions] = useState<string[]>(['Percentage On Bill', 'Percentage On Bill - Increasing', 'Tiered', 'Flat']);
   const [payoutCurrencyOptions, setPayoutCurrencyOptions] = useState<string[]>(['USD', 'EUR', 'GBP', 'CAD']);
   const [payoutTimingOptions, setPayoutTimingOptions] = useState<string[]>(['Month End', 'Immediate', 'At Maturity']);
   const [accountRestrictionOptions, setAccountRestrictionOptions] = useState<string[]>(['None', 'Over-30-Day-Late-ACs', 'Over-60-Day-Late-ACs', 'Active-Collections']);
