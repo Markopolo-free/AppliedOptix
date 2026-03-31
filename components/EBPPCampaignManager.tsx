@@ -173,7 +173,6 @@ const EBPPCampaignManager: React.FC = () => {
   const isMaker = currentUser?.role === UserRole.Maker || currentUser?.role === UserRole.Administrator;
   const isChecker = currentUser?.role === UserRole.Checker || currentUser?.role === UserRole.Administrator;
   const supportsMultiplePercentages =
-    formData.isTieredPayouts ||
     formData.cashBackType === 'Tiered' ||
     formData.cashBackType === 'Percentage On Bill - Increasing';
 
@@ -694,18 +693,6 @@ const EBPPCampaignManager: React.FC = () => {
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tiered Pay-outs Per Bill</label>
-              <select
-                value={formData.isTieredPayouts ? 'yes' : 'no'}
-                onChange={(e) => setFormData({ ...formData, isTieredPayouts: e.target.value === 'yes' })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
-              >
-                <option value="no">NO</option>
-                <option value="yes">YES</option>
-              </select>
-            </div>
-
             {supportsMultiplePercentages && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -764,7 +751,7 @@ const EBPPCampaignManager: React.FC = () => {
 
             {!supportsMultiplePercentages && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cash Back Multiplier</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cash-back discount</label>
                 <input
                   type="number"
                   step="0.1"
