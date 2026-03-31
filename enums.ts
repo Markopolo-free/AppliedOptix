@@ -49,6 +49,7 @@ export enum ZoneType {
 }
 
 export enum ApprovalStatus {
+    Draft = 'Draft',
     Pending = 'Pending',
     Approved = 'Approved',
     Rejected = 'Rejected'

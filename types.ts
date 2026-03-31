@@ -414,8 +414,8 @@ export interface AuditLog {
     userId: string;
     userName: string;
     userEmail: string;
-    action: 'create' | 'update' | 'delete' | 'approve' | 'reject' | 'login' | 'logout' | 'initialize';
-    entityType: 'user' | 'service' | 'zone' | 'pricing' | 'campaign' | 'loyalty' | 'bundle' | 'reference' | 'auth' | 'fxpricing' | 'discountgroup' | 'fxcampaign' | 'fxdiscountoption';
+    action: 'create' | 'update' | 'delete' | 'approve' | 'reject' | 'submit' | 'login' | 'logout' | 'initialize';
+    entityType: 'user' | 'service' | 'zone' | 'pricing' | 'campaign' | 'loyalty' | 'bundle' | 'reference' | 'auth' | 'fxpricing' | 'discountgroup' | 'fxcampaign' | 'fxdiscountoption' | 'ebpp-campaign';
     entityId?: string; // ID of the affected entity (optional for login/logout)
     entityName?: string; // Name/description of the entity for easy reference
     changes?: AuditLogChange[]; // Detailed changes for update operations
