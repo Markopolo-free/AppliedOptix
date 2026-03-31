@@ -95,6 +95,23 @@ const createDefaultTier = (): EBPPCampaignTier => ({
   cashBackMultiplier: 1.5,
 });
 
+const createSuggestedTier = (index: number): EBPPCampaignTier => {
+  const defaults = [
+    { billCycleAmountFrom: 0, billCycleAmountTo: 100, cashBackMultiplier: 1.5 },
+    { billCycleAmountFrom: 100.01, billCycleAmountTo: 200, cashBackMultiplier: 1.75 },
+    { billCycleAmountFrom: 200.01, billCycleAmountTo: 300, cashBackMultiplier: 2.25 },
+    { billCycleAmountFrom: 300.01, billCycleAmountTo: null, cashBackMultiplier: 3.5 },
+  ];
+  const fallback = defaults[Math.min(index, defaults.length - 1)];
+
+  return {
+    ...newTier(),
+    billCycleAmountFrom: fallback.billCycleAmountFrom,
+    billCycleAmountTo: fallback.billCycleAmountTo,
+    cashBackMultiplier: fallback.cashBackMultiplier,
+  };
+};
+
 const EBPPCampaignManager: React.FC = () => {
   const { currentUser, effectiveTenantId } = useAuth();
 
@@ -116,6 +133,10 @@ const EBPPCampaignManager: React.FC = () => {
 
   const isMaker = currentUser?.role === UserRole.Maker || currentUser?.role === UserRole.Administrator;
   const isChecker = currentUser?.role === UserRole.Checker || currentUser?.role === UserRole.Administrator;
+  const supportsMultiplePercentages =
+    formData.isTieredPayouts ||
+    formData.cashBackType === 'Tiered' ||
+    formData.cashBackType === 'Percentage On Bill - Increasing';
 
   const fetchCampaigns = useCallback(async () => {
     setIsLoading(true);
@@ -144,6 +165,20 @@ const EBPPCampaignManager: React.FC = () => {
   useEffect(() => {
     fetchCampaigns();
   }, [fetchCampaigns]);
+
+  useEffect(() => {
+    if (!supportsMultiplePercentages) return;
+
+    setTiers((prev) => {
+      if (prev.length >= 4) return prev;
+
+      const next = [...prev];
+      for (let index = prev.length; index < 4; index += 1) {
+        next.push(createSuggestedTier(index));
+      }
+      return next;
+    });
+  }, [supportsMultiplePercentages]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -260,7 +295,7 @@ const EBPPCampaignManager: React.FC = () => {
     setIsSaving(true);
     try {
       const now = new Date().toISOString();
-      const normalizedTiers = formData.isTieredPayouts
+      const normalizedTiers = supportsMultiplePercentages
         ? tiers
         : [
             {
@@ -277,7 +312,7 @@ const EBPPCampaignManager: React.FC = () => {
         cashBackType: formData.cashBackType,
         payoutCurrency: formData.payoutCurrency,
         percentageOnBill: formData.percentageOnBill,
-        isTieredPayouts: formData.isTieredPayouts,
+        isTieredPayouts: supportsMultiplePercentages,
         tiers: normalizedTiers,
         streakMultipliers: formData.cashBackType === 'Percentage On Bill - Increasing' ? streakMultipliers : [],
         hasStreakMultipliers: formData.cashBackType === 'Percentage On Bill - Increasing' && streakMultipliers.length > 0,
@@ -610,9 +645,11 @@ const EBPPCampaignManager: React.FC = () => {
               </select>
             </div>
 
-            {formData.isTieredPayouts && (
+            {supportsMultiplePercentages && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Bill Cycle Tiers</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {formData.cashBackType === 'Percentage On Bill - Increasing' ? 'Bill Discount Amounts' : 'Bill Cycle Tiers'}
+                </label>
                 <div className="space-y-2 border border-gray-200 rounded-lg p-3 bg-gray-50">
                   {tiers.map((tier, idx) => (
                     <div key={tier.id} className="flex gap-2 mb-2">
@@ -649,17 +686,19 @@ const EBPPCampaignManager: React.FC = () => {
                       )}
                     </div>
                   ))}
-                  <button
-                    onClick={addTier}
-                    className="w-full mt-2 px-3 py-2 bg-blue-100 text-blue-700 text-sm rounded hover:bg-blue-200"
-                  >
-                    + Add Tier
-                  </button>
+                  {formData.cashBackType !== 'Percentage On Bill - Increasing' && (
+                    <button
+                      onClick={addTier}
+                      className="w-full mt-2 px-3 py-2 bg-blue-100 text-blue-700 text-sm rounded hover:bg-blue-200"
+                    >
+                      + Add Tier
+                    </button>
+                  )}
                 </div>
               </div>
             )}
 
-            {!formData.isTieredPayouts && (
+            {!supportsMultiplePercentages && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Cash Back Multiplier</label>
                 <input
