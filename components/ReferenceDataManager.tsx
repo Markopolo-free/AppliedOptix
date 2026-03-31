@@ -249,6 +249,88 @@ const categoryFields: Record<CategoryType, Array<{ key: keyof ReferenceItem, lab
   ],
 };
 
+const categoryLabels: Record<CategoryType, string> = {
+  countries: 'Countries',
+  currencies: 'Currencies',
+  fxSegments: 'FX Segments',
+  serviceTypes: 'Service Types',
+  zoneTypes: 'Zone Types',
+  companyTypes: 'Company Types',
+  zones: 'Pricing Zones',
+  cities: 'Cities',
+  weatherConditions: 'Weather Conditions',
+  loyaltyTriggerEvents: 'Loyalty Trigger Events',
+  discountAmountTypes: 'Discount Amount Types',
+  badges: 'Badges',
+  loyaltyStamps: 'Digital Loyalty Stamps',
+  interestProductTypes: 'Interest Product Types',
+  interestCurrencies: 'Interest Currencies',
+  interestDayCountConventions: 'Interest Day Count Conventions',
+  interestAccrualFrequencies: 'Interest Accrual Frequencies',
+  interestPayoutFrequencies: 'Interest Payout Frequencies',
+  interestCompoundingTypes: 'Interest Compounding Types',
+  interestRoundingScales: 'Interest Rounding Scales',
+  interestRoundingModes: 'Interest Rounding Modes',
+  ebppRewardTypes: 'EBPP Reward Types',
+  ebppCashBackTypes: 'EBPP Cash Back Types',
+  ebppPayoutCurrencies: 'EBPP Payout Currencies',
+  ebppPayoutTimings: 'EBPP Payout Timings',
+  ebppAccountRestrictions: 'EBPP Account Restrictions',
+};
+
+const categoryGroups: Array<{ label: string; categories: CategoryType[] }> = [
+  {
+    label: 'Core Reference Data',
+    categories: [
+      'countries',
+      'currencies',
+      'fxSegments',
+      'serviceTypes',
+      'zoneTypes',
+      'companyTypes',
+      'zones',
+      'cities',
+      'weatherConditions',
+    ],
+  },
+  {
+    label: 'Loyalty And Rewards',
+    categories: [
+      'loyaltyTriggerEvents',
+      'discountAmountTypes',
+      'badges',
+      'loyaltyStamps',
+    ],
+  },
+  {
+    label: 'Interest Product Setup',
+    categories: [
+      'interestProductTypes',
+      'interestCurrencies',
+      'interestDayCountConventions',
+      'interestAccrualFrequencies',
+      'interestPayoutFrequencies',
+      'interestCompoundingTypes',
+      'interestRoundingScales',
+      'interestRoundingModes',
+    ],
+  },
+  {
+    label: 'EBPP Reference Data',
+    categories: [
+      'ebppRewardTypes',
+      'ebppCashBackTypes',
+      'ebppPayoutCurrencies',
+      'ebppPayoutTimings',
+      'ebppAccountRestrictions',
+    ],
+  },
+];
+
+const getCategoryGroupLabel = (targetCategory: CategoryType): string => {
+  return categoryGroups.find((group) => group.categories.includes(targetCategory))?.label || 'Reference Data';
+};
+
 type EBPPReferenceCategory =
   | 'ebppRewardTypes'
   | 'ebppCashBackTypes'
@@ -372,6 +454,20 @@ const ReferenceDataManager: React.FC = () => {
   ): boolean => {
     return (INTEREST_REFERENCE_CATEGORIES as readonly string[]).includes(targetCategory) && 
            (fieldKey === 'dateAdded' || fieldKey === 'addedBy');
+  };
+
+  const getItemSortValue = (item: ReferenceItem): string => {
+    if (category === 'currencies') {
+      return `${item.code || ''} ${item.name || ''}`.trim().toLowerCase();
+    }
+
+    if (category === 'cities' || category === 'weatherConditions') {
+      return `${item.country || ''} ${item.city || ''} ${item.name || ''}`.trim().toLowerCase();
+    }
+
+    return String(item.name || item.code || '').trim().toLowerCase();
+
+    const activeCategoryGroupLabel = getCategoryGroupLabel(category);
   };
 
   const reseedInterestReferenceData = async () => {
@@ -608,6 +704,7 @@ const ReferenceDataManager: React.FC = () => {
           return !countryNames.map(n => n.toLowerCase()).includes(name);
         });
       }
+      filtered.sort((left, right) => getItemSortValue(left).localeCompare(getItemSortValue(right)));
       // Debug log: show filtered items
       // eslint-disable-next-line no-console
       console.log('Filtered items for UI:', filtered);
@@ -625,56 +722,47 @@ const ReferenceDataManager: React.FC = () => {
       <h2 className="text-xl font-bold mb-4">Reference Data Manager</h2>
       <div className="bg-white rounded shadow p-6 md:p-8 w-full">
         <select value={category} onChange={e => setCategory(e.target.value as CategoryType)} className="mb-4 bg-gray-100 border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
-          <option value="countries">Countries</option>
-          <option value="currencies">Currencies</option>
-          <option value="fxSegments">FX Segments</option>
-          <option value="serviceTypes">Service Types</option>
-          <option value="zoneTypes">Zone Types</option>
-          <option value="companyTypes">Company Types</option>
-          <option value="zones">Pricing Zones</option>
-          <option value="cities">Cities</option>
-          <option value="weatherConditions">Weather Conditions</option>
-          <option value="loyaltyTriggerEvents">Loyalty Trigger Events</option>
-          <option value="discountAmountTypes">Discount Amount Types</option>
-          <option value="loyaltyStamps">Digital Loyalty Stamps</option>
-          <option value="interestProductTypes">Interest Product Types</option>
-          <option value="interestCurrencies">Interest Currencies</option>
-          <option value="interestDayCountConventions">Interest Day Count Conventions</option>
-          <option value="interestAccrualFrequencies">Interest Accrual Frequencies</option>
-          <option value="interestPayoutFrequencies">Interest Payout Frequencies</option>
-          <option value="interestCompoundingTypes">Interest Compounding Types</option>
-          <option value="interestRoundingScales">Interest Rounding Scales</option>
-          <option value="interestRoundingModes">Interest Rounding Modes</option>
-          <optgroup label="── EBPP Reference Data ──" />
-          <option value="ebppRewardTypes">EBPP Reward Types</option>
-          <option value="ebppCashBackTypes">EBPP Cash Back Types</option>
-          <option value="ebppPayoutCurrencies">EBPP Payout Currencies</option>
-          <option value="ebppPayoutTimings">EBPP Payout Timings</option>
-          <option value="ebppAccountRestrictions">EBPP Account Restrictions</option>
+          {categoryGroups.map((group) => (
+            <optgroup key={group.label} label={group.label}>
+              {group.categories.map((groupCategory) => (
+                <option key={groupCategory} value={groupCategory}>
+                  {categoryLabels[groupCategory]}
+                </option>
+              ))}
+            </optgroup>
+          ))}
         </select>
         <div className="mt-4">
           <div className="flex justify-between items-center mb-2">
-            <div className="font-semibold">{categoryFields[category].map(f => f.label).join(' | ')}</div>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{activeCategoryGroupLabel}</div>
+              <div className="font-semibold">{categoryLabels[category]}</div>
+              <div className="text-sm text-gray-600">{categoryFields[category].map(f => f.label).join(' | ')}</div>
+            </div>
             <div className="flex gap-2">
               <button className="px-3 py-1 bg-blue-600 text-white rounded" onClick={() => { setShowForm(true); setEditingItem(null); setFormData({}); }}>Add</button>
-              <button
-                className="px-3 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-60"
-                disabled={isSeedingInterestRefs}
-                onClick={async () => {
-                  await reseedInterestReferenceData();
-                }}
-              >
-                {isSeedingInterestRefs ? 'Reseeding...' : 'Reseed Interest Defaults'}
-              </button>
-              <button
-                className="px-3 py-1 bg-teal-600 text-white rounded hover:bg-teal-700 disabled:opacity-60"
-                disabled={isSeedingEbppRefs}
-                onClick={async () => {
-                  await reseedEbppReferenceData();
-                }}
-              >
-                {isSeedingEbppRefs ? 'Reseeding...' : 'Seed EBPP Defaults'}
-              </button>
+              {(INTEREST_REFERENCE_CATEGORIES as readonly string[]).includes(category) && (
+                <button
+                  className="px-3 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-60"
+                  disabled={isSeedingInterestRefs}
+                  onClick={async () => {
+                    await reseedInterestReferenceData();
+                  }}
+                >
+                  {isSeedingInterestRefs ? 'Reseeding...' : 'Reseed Interest Defaults'}
+                </button>
+              )}
+              {(EBPP_REFERENCE_CATEGORIES as readonly string[]).includes(category) && (
+                <button
+                  className="px-3 py-1 bg-teal-600 text-white rounded hover:bg-teal-700 disabled:opacity-60"
+                  disabled={isSeedingEbppRefs}
+                  onClick={async () => {
+                    await reseedEbppReferenceData();
+                  }}
+                >
+                  {isSeedingEbppRefs ? 'Reseeding...' : 'Seed EBPP Defaults'}
+                </button>
+              )}
               {category === 'countries' && (
                 <button
                   className="px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700"
@@ -920,7 +1008,10 @@ const ReferenceDataManager: React.FC = () => {
           </div>
           {showForm && (
             <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-              <h3 className="text-lg font-semibold mb-2">{editingItem ? 'Edit' : 'Add'} {categoryFields[category][0].label}</h3>
+              <div className="mb-2">
+                <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{activeCategoryGroupLabel}</div>
+                <h3 className="text-lg font-semibold">{editingItem ? 'Edit' : 'Add'} {categoryLabels[category]}</h3>
+              </div>
               <form ref={formRef} className="space-y-2" onSubmit={async (e) => {
                 e.preventDefault();
                 const refPath = categoryToPath[category];
