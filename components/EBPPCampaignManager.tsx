@@ -140,6 +140,34 @@ const EBPPCampaignManager: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
+  // Reference data options loaded from Firebase
+  const [rewardTypeOptions, setRewardTypeOptions] = useState<string[]>(['Cash Back', 'Points', 'Discount']);
+  const [cashBackTypeOptions, setCashBackTypeOptions] = useState<string[]>(['Flat', 'Tiered', 'Percentage On Bill', 'Percentage On Bill - Increasing']);
+  const [payoutCurrencyOptions, setPayoutCurrencyOptions] = useState<string[]>(['USD', 'EUR', 'GBP', 'CAD']);
+  const [payoutTimingOptions, setPayoutTimingOptions] = useState<string[]>(['Month End', 'Immediate', 'At Maturity']);
+  const [accountRestrictionOptions, setAccountRestrictionOptions] = useState<string[]>(['None', 'Over-30-Day-Late-ACs', 'Over-60-Day-Late-ACs', 'Active-Collections']);
+
+  useEffect(() => {
+    const paths: Array<{ path: string; setter: (vals: string[]) => void }> = [
+      { path: 'referenceEbppRewardTypes', setter: setRewardTypeOptions },
+      { path: 'referenceEbppCashBackTypes', setter: setCashBackTypeOptions },
+      { path: 'referenceEbppPayoutCurrencies', setter: setPayoutCurrencyOptions },
+      { path: 'referenceEbppPayoutTimings', setter: setPayoutTimingOptions },
+      { path: 'referenceEbppAccountRestrictions', setter: setAccountRestrictionOptions },
+    ];
+    paths.forEach(({ path, setter }) => {
+      get(ref(db, path)).then((snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.val();
+          const names = Object.values(data)
+            .map((item: any) => (typeof item === 'string' ? item : item?.name || '').trim())
+            .filter(Boolean) as string[];
+          if (names.length > 0) setter(names);
+        }
+      });
+    });
+  }, []);
+
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const isMaker = currentUser?.role === UserRole.Maker || currentUser?.role === UserRole.Administrator;
@@ -660,10 +688,9 @@ const EBPPCampaignManager: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, payoutCurrency: e.target.value })}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2"
               >
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
-                <option value="GBP">GBP</option>
-                <option value="CAD">CAD</option>
+                {payoutCurrencyOptions.map((v) => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
               </select>
             </div>
 
@@ -810,10 +837,9 @@ const EBPPCampaignManager: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, cashBackType: e.target.value })}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2"
               >
-                <option value="Flat">Flat</option>
-                <option value="Tiered">Tiered</option>
-                <option value="Percentage On Bill">Percentage On Bill</option>
-                <option value="Percentage On Bill - Increasing">Percentage On Bill - Increasing</option>
+                {cashBackTypeOptions.map((v) => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
               </select>
             </div>
 
@@ -824,9 +850,9 @@ const EBPPCampaignManager: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, percentageOnBill: e.target.value })}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2"
               >
-                <option value="Month End">Month End</option>
-                <option value="Immediate">Immediate</option>
-                <option value="At Maturity">At Maturity</option>
+                {payoutTimingOptions.map((v) => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
               </select>
             </div>
 
@@ -837,9 +863,9 @@ const EBPPCampaignManager: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, rewardType: e.target.value })}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2"
               >
-                <option value="Cash Back">Cash Back</option>
-                <option value="Points">Points</option>
-                <option value="Discount">Discount</option>
+                {rewardTypeOptions.map((v) => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
               </select>
             </div>
 
@@ -909,10 +935,9 @@ const EBPPCampaignManager: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, accountRestrictions: e.target.value })}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2"
               >
-                <option value="None">None</option>
-                <option value="Over-30-Day-Late-ACs">Over-30-Day-Late-ACs</option>
-                <option value="Over-60-Day-Late-ACs">Over-60-Day-Late-ACs</option>
-                <option value="Active-Collections">Active-Collections</option>
+                {accountRestrictionOptions.map((v) => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
               </select>
             </div>
 

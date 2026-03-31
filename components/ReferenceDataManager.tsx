@@ -20,6 +20,11 @@ const categoryToPath: Record<CategoryType, string> = {
   interestCompoundingTypes: 'referenceInterestCompoundingTypes',
   interestRoundingScales: 'referenceInterestRoundingScales',
   interestRoundingModes: 'referenceInterestRoundingModes',
+  ebppRewardTypes: 'referenceEbppRewardTypes',
+  ebppCashBackTypes: 'referenceEbppCashBackTypes',
+  ebppPayoutCurrencies: 'referenceEbppPayoutCurrencies',
+  ebppPayoutTimings: 'referenceEbppPayoutTimings',
+  ebppAccountRestrictions: 'referenceEbppAccountRestrictions',
 };
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -57,7 +62,12 @@ type CategoryType =
   | 'interestPayoutFrequencies'
   | 'interestCompoundingTypes'
   | 'interestRoundingScales'
-  | 'interestRoundingModes';
+  | 'interestRoundingModes'
+  | 'ebppRewardTypes'
+  | 'ebppCashBackTypes'
+  | 'ebppPayoutCurrencies'
+  | 'ebppPayoutTimings'
+  | 'ebppAccountRestrictions';
 interface ReferenceItem {
   id: string;
   name?: string;
@@ -207,6 +217,74 @@ const categoryFields: Record<CategoryType, Array<{ key: keyof ReferenceItem, lab
     { key: 'dateAdded', label: 'Date Added' },
     { key: 'addedBy', label: 'Added By' },
   ],
+  ebppRewardTypes: [
+    { key: 'name', label: 'Reward Type', required: true },
+    { key: 'description', label: 'Description' },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+  ebppCashBackTypes: [
+    { key: 'name', label: 'Cash Back Type', required: true },
+    { key: 'description', label: 'Description' },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+  ebppPayoutCurrencies: [
+    { key: 'name', label: 'Payout Currency', required: true },
+    { key: 'description', label: 'Description' },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+  ebppPayoutTimings: [
+    { key: 'name', label: 'Payout Timing', required: true },
+    { key: 'description', label: 'Description' },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+  ebppAccountRestrictions: [
+    { key: 'name', label: 'Account Restriction', required: true },
+    { key: 'description', label: 'Description' },
+    { key: 'dateAdded', label: 'Date Added' },
+    { key: 'addedBy', label: 'Added By' },
+  ],
+};
+
+type EBPPReferenceCategory =
+  | 'ebppRewardTypes'
+  | 'ebppCashBackTypes'
+  | 'ebppPayoutCurrencies'
+  | 'ebppPayoutTimings'
+  | 'ebppAccountRestrictions';
+
+const EBPP_REFERENCE_SEEDS: Record<EBPPReferenceCategory, Array<{ name: string; description?: string }>> = {
+  ebppRewardTypes: [
+    { name: 'Cash Back', description: 'Customer receives a cash reward.' },
+    { name: 'Points', description: 'Customer earns loyalty points.' },
+    { name: 'Discount', description: 'Discount applied to future bills.' },
+  ],
+  ebppCashBackTypes: [
+    { name: 'Flat', description: 'Fixed cash back amount.' },
+    { name: 'Tiered', description: 'Cash back varies by tier.' },
+    { name: 'Percentage On Bill', description: 'Percentage of the bill amount.' },
+    { name: 'Percentage On Bill - Increasing', description: 'Increasing percentage with streak multipliers.' },
+  ],
+  ebppPayoutCurrencies: [
+    { name: 'USD', description: 'US Dollar' },
+    { name: 'EUR', description: 'Euro' },
+    { name: 'GBP', description: 'British Pound' },
+    { name: 'CAD', description: 'Canadian Dollar' },
+  ],
+  ebppPayoutTimings: [
+    { name: 'Month End', description: 'Payout processed at month end.' },
+    { name: 'Immediate', description: 'Payout processed immediately.' },
+    { name: 'At Maturity', description: 'Payout processed at campaign maturity.' },
+  ],
+  ebppAccountRestrictions: [
+    { name: 'None', description: 'No account restrictions.' },
+    { name: 'Over-30-Day-Late-ACs', description: 'Accounts over 30 days late excluded.' },
+    { name: 'Over-60-Day-Late-ACs', description: 'Accounts over 60 days late excluded.' },
+    { name: 'Active-Collections', description: 'Accounts in active collections excluded.' },
+  ],
 };
 
 type InterestReferenceCategory =
@@ -273,6 +351,7 @@ const ReferenceDataManager: React.FC = () => {
   const [cityOptions, setCityOptions] = useState<string[]>([]);
   const [imagePreview, setImagePreview] = useState<string>('');
   const [isSeedingInterestRefs, setIsSeedingInterestRefs] = useState(false);
+  const [isSeedingEbppRefs, setIsSeedingEbppRefs] = useState(false);
   const { currentUser } = useAuth();
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -367,6 +446,86 @@ const ReferenceDataManager: React.FC = () => {
       window.alert('Failed to reseed interest reference data.');
     } finally {
       setIsSeedingInterestRefs(false);
+    }
+  };
+
+  const EBPP_REFERENCE_CATEGORIES = [
+    'ebppRewardTypes',
+    'ebppCashBackTypes',
+    'ebppPayoutCurrencies',
+    'ebppPayoutTimings',
+    'ebppAccountRestrictions',
+  ] as const;
+
+  const reseedEbppReferenceData = async () => {
+    if (isSeedingEbppRefs) return;
+
+    const confirmed = window.confirm(
+      'Reseed EBPP reference data with defaults? Existing items are kept and duplicates are skipped.'
+    );
+    if (!confirmed) return;
+
+    setIsSeedingEbppRefs(true);
+    let addedCount = 0;
+
+    try {
+      const categories = Object.entries(EBPP_REFERENCE_SEEDS) as Array<[
+        EBPPReferenceCategory,
+        Array<{ name: string; description?: string }>
+      ]>;
+
+      for (const [ebppCategory, defaults] of categories) {
+        const path = categoryToPath[ebppCategory];
+        const pathRef = ref(db, path);
+        const snapshot = await get(pathRef);
+        const existingData = snapshot.val() || {};
+
+        const existingNames = new Set(
+          Object.values(existingData)
+            .map((row: any) => {
+              if (typeof row === 'string') return row.trim().toLowerCase();
+              return String(row?.name || row?.code || '').trim().toLowerCase();
+            })
+            .filter(Boolean)
+        );
+
+        for (const seed of defaults) {
+          const normalizedName = seed.name.trim().toLowerCase();
+          if (existingNames.has(normalizedName)) continue;
+
+          const newRef = push(pathRef);
+          const newId = newRef.key || '';
+          await set(newRef, {
+            id: newId,
+            name: seed.name,
+            description: seed.description || '',
+            dateAdded: new Date().toISOString(),
+            addedBy: currentUser?.email || 'Unknown',
+          });
+          existingNames.add(normalizedName);
+          addedCount += 1;
+        }
+      }
+
+      await Promise.race([
+        logAudit({
+          action: 'create',
+          entityType: 'reference',
+          entityName: 'EBPP Reference Defaults Reseed',
+          metadata: { addedCount },
+          userId: currentUser?.email || 'unknown',
+          userName: currentUser?.email?.split('@')[0] || 'Unknown User',
+          userEmail: currentUser?.email || 'unknown',
+        }),
+        new Promise((resolve) => setTimeout(resolve, 4000)),
+      ]);
+
+      window.alert(`EBPP reference reseed complete. Added ${addedCount} new entries.`);
+    } catch (error) {
+      console.error('Failed to reseed EBPP reference data:', error);
+      window.alert('Failed to reseed EBPP reference data.');
+    } finally {
+      setIsSeedingEbppRefs(false);
     }
   };
 
@@ -486,6 +645,12 @@ const ReferenceDataManager: React.FC = () => {
           <option value="interestCompoundingTypes">Interest Compounding Types</option>
           <option value="interestRoundingScales">Interest Rounding Scales</option>
           <option value="interestRoundingModes">Interest Rounding Modes</option>
+          <optgroup label="── EBPP Reference Data ──" />
+          <option value="ebppRewardTypes">EBPP Reward Types</option>
+          <option value="ebppCashBackTypes">EBPP Cash Back Types</option>
+          <option value="ebppPayoutCurrencies">EBPP Payout Currencies</option>
+          <option value="ebppPayoutTimings">EBPP Payout Timings</option>
+          <option value="ebppAccountRestrictions">EBPP Account Restrictions</option>
         </select>
         <div className="mt-4">
           <div className="flex justify-between items-center mb-2">
@@ -500,6 +665,15 @@ const ReferenceDataManager: React.FC = () => {
                 }}
               >
                 {isSeedingInterestRefs ? 'Reseeding...' : 'Reseed Interest Defaults'}
+              </button>
+              <button
+                className="px-3 py-1 bg-teal-600 text-white rounded hover:bg-teal-700 disabled:opacity-60"
+                disabled={isSeedingEbppRefs}
+                onClick={async () => {
+                  await reseedEbppReferenceData();
+                }}
+              >
+                {isSeedingEbppRefs ? 'Reseeding...' : 'Seed EBPP Defaults'}
               </button>
               {category === 'countries' && (
                 <button
