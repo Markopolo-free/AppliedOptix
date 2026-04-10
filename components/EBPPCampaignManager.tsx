@@ -608,7 +608,7 @@ const EBPPCampaignManager: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">EBPP - Campaign Creation</h1>
+        <h1 className="text-3xl font-bold text-gray-800 mb-2">EBPP - Campaign Manager</h1>
         <p className="text-gray-600">
           Create and manage Electronic Bill Presentment and Payment incentive campaigns to encourage electronic bill adoption and reduce payment delinquencies.
         </p>
@@ -657,7 +657,7 @@ const EBPPCampaignManager: React.FC = () => {
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
         <div className="flex items-start justify-between gap-4 mb-4">
           <div>
-            <h2 className="text-xl font-semibold text-gray-800">{editingCampaign ? 'Edit Campaign' : 'Campaign Details'}</h2>
+            <h2 className="text-xl font-semibold text-gray-800">{editingCampaign ? 'Edit Campaign' : 'Campaign Detail'}</h2>
             {editingCampaign && (
               <p className="text-sm text-gray-600 mt-1">
                 Editing {editingCampaign.campaignCode} currently in {editingCampaign.status} status.
